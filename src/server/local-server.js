@@ -19,6 +19,7 @@ const fs = require('fs');
 const http = require('http');
 const multer = require('multer');
 const SyncClient = require('./sync-client');
+const { createGames } = require('./games');
 
 // Sounds directory
 const SOUNDS_DIR = path.join(process.env.APPDATA || process.env.HOME, 'StreamCompanion', 'sounds');
@@ -98,8 +99,23 @@ const CONFIG = {
   wsPort: process.env.WS_PORT || 8878,
   overlaysDir: process.env.OVERLAYS_DIR || 'C:\\Streaming\\Programs\\StreamCompanion\\src\\overlays',
   remoteWsUrl: process.env.REMOTE_WS_URL || 'wss://stream.soupymediagroup.com/ws',
-  remoteApiUrl: process.env.REMOTE_API_URL || 'https://stream.soupymediagroup.com'
+  remoteApiUrl: process.env.REMOTE_API_URL || 'https://stream.soupymediagroup.com',
+  // Game data on the streaming PC (same paths the old standalone server used)
+  mediaDir: process.env.MEDIA_DIR || 'C:\Streaming\Media',
+  triviaDir: process.env.TRIVIA_DIR || 'C:\Streaming\Media\Games\Trivia',
+  moviesDir: process.env.MOVIES_DIR || 'C:\Streaming\Media\Games\Movies',
+  killersDir: process.env.KILLERS_DIR || 'C:\Streaming\DBD Portraits\killers',
+  // Cumulative game leaderboard (companion.json, shared with the old standalone server)
+  gamesDataDir: process.env.GAMES_DATA_DIR || 'C:\Streaming\Programs\StreamCompanion\data'
 };
+
+// ========== GAMES (trivia, movies, leaderboard) ==========
+const games = createGames({
+  broadcast: (data) => broadcastToOverlays(data),
+  triviaDir: CONFIG.triviaDir,
+  moviesDir: CONFIG.moviesDir,
+  dataDir: CONFIG.gamesDataDir
+});
 
 // Local WebSocket clients (overlays)
 const localClients = new Set();
@@ -252,7 +268,13 @@ const syncClient = new SyncClient({
   onChatMessage: (msg) => {
     broadcastToOverlays({ type: 'twitch-chat', data: msg });
     // Handle chat commands
-    handleChatCommand(msg);
+    try {
+      handleChatCommand(msg);
+    } catch (e) {
+      console.error('[LocalServer] Chat command error:', e);
+    }
+    // Chat answers for trivia / movie games
+    games.handleChatMessage(msg);
   },
 
   onTwitchEvent: (event) => {
@@ -266,9 +288,9 @@ const syncClient = new SyncClient({
 });
 
 // ========== LOCAL WEBSOCKET SERVER ==========
-const wss = new WebSocketServer({ port: CONFIG.wsPort });
+let wss = null;
 
-wss.on('connection', (ws, req) => {
+function handleOverlayConnection(ws) {
   console.log('[LocalServer] Overlay client connected');
   localClients.add(ws);
 
@@ -300,7 +322,11 @@ wss.on('connection', (ws, req) => {
       console.error('[LocalServer] Error handling message:', e);
     }
   });
-});
+
+  ws.on('error', (err) => {
+    console.error('[LocalServer] Overlay client error:', err.message);
+  });
+}
 
 function broadcastToOverlays(data) {
   const message = JSON.stringify(data);
@@ -326,6 +352,14 @@ app.use((req, res, next) => {
 
 // Serve overlays locally
 app.use(express.static(CONFIG.overlaysDir));
+
+// Media for overlays (logos, movie images, killer portraits)
+app.use('/media/Games/Movies', express.static(CONFIG.moviesDir));
+app.use('/media/killers', express.static(CONFIG.killersDir));
+app.use('/media', express.static(CONFIG.mediaDir));
+
+// Trivia, movie and cumulative game routes
+app.use(games.router);
 
 // Health/status endpoint
 app.get('/api/status', (req, res) => {
@@ -684,24 +718,86 @@ app.delete('/api/commands/:id', (req, res) => {
   }
 });
 
-// ========== START SERVER ==========
-const server = app.listen(CONFIG.httpPort, '0.0.0.0', () => {
-  console.log(`
-╔════════════════════════════════════════════╗
-║     Stream Companion Local Server          ║
-╠════════════════════════════════════════════╣
-║  Overlays:   http://localhost:${CONFIG.httpPort}          ║
-║  WebSocket:  ws://localhost:${CONFIG.wsPort}              ║
-║  Remote:     ${CONFIG.remoteApiUrl}
-╚════════════════════════════════════════════╝
-  `);
+// ========== START / STOP ==========
+let server = null;
 
-  // Connect to remote server
+function listenHttp() {
+  return new Promise((resolve, reject) => {
+    const srv = http.createServer(app);
+    srv.once('error', reject);
+    srv.listen(CONFIG.httpPort, '0.0.0.0', () => {
+      srv.removeListener('error', reject);
+      srv.on('error', (err) => console.error('[LocalServer] HTTP server error:', err.message));
+      resolve(srv);
+    });
+  });
+}
+
+function listenWs() {
+  return new Promise((resolve, reject) => {
+    const w = new WebSocketServer({ port: CONFIG.wsPort });
+    w.once('error', reject);
+    w.once('listening', () => {
+      w.removeListener('error', reject);
+      w.on('error', (err) => console.error('[LocalServer] WebSocket server error:', err.message));
+      w.on('connection', handleOverlayConnection);
+      resolve(w);
+    });
+  });
+}
+
+/** Bind HTTP (8877) and overlay WebSocket (8878), then connect to Tower. */
+async function start() {
+  try {
+    server = await listenHttp();
+    wss = await listenWs();
+  } catch (err) {
+    const port = server ? CONFIG.wsPort : CONFIG.httpPort;
+    await close();
+    const e = new Error(err.code === 'EADDRINUSE'
+      ? `Port ${port} is already in use by another program`
+      : `Could not start local server on port ${port}: ${err.message}`);
+    e.code = err.code;
+    throw e;
+  }
+
+  console.log(`[LocalServer] Overlays:  http://localhost:${CONFIG.httpPort} (from ${CONFIG.overlaysDir})`);
+  console.log(`[LocalServer] WebSocket: ws://localhost:${CONFIG.wsPort}`);
+  console.log(`[LocalServer] Remote:    ${CONFIG.remoteWsUrl}`);
+
   syncClient.connect();
-});
+}
+
+/** Stop the sync client, close overlay sockets and both servers. */
+function close() {
+  games.close();
+  syncClient.disconnect();
+
+  const closing = [];
+  if (wss) {
+    for (const client of localClients) {
+      try { client.terminate(); } catch (e) { /* already gone */ }
+    }
+    localClients.clear();
+    const w = wss;
+    wss = null;
+    closing.push(new Promise(resolve => w.close(() => resolve())));
+  }
+  if (server) {
+    const srv = server;
+    server = null;
+    if (srv.closeAllConnections) srv.closeAllConnections();
+    closing.push(new Promise(resolve => srv.close(() => resolve())));
+  }
+  return Promise.all(closing).then(() => {
+    console.log('[LocalServer] Stopped');
+  });
+}
 
 // Exports for main process
 module.exports = {
+  start,
+  close,
   getState: () => syncedState,
   isRemoteConnected: () => syncClient.isConnected(),
   broadcastToOverlays,

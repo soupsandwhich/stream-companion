@@ -1897,6 +1897,8 @@
               <p style="color:#aaa;">Click "Next Question" to show the first question</p>
             </div>
           `;
+        } else if (data.error) {
+          alert('Could not start trivia: ' + data.error);
         }
       } catch (e) {
         console.error('Error starting trivia:', e);
@@ -2529,6 +2531,10 @@
       try {
         const res = await fetch('http://localhost:8877/api/movies/available');
         const data = await res.json();
+        if (data.error) {
+          document.getElementById('movie-library-count').textContent = data.error;
+          return;
+        }
         document.getElementById('movie-library-count').innerHTML = `
           <span style="color:#4caf50;font-weight:bold;">${data.count}</span> movies available
         `;

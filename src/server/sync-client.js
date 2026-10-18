@@ -22,6 +22,8 @@ class SyncClient {
     this.reconnectDelay = 3000;
     this.pingInterval = null;
     this.pingIntervalMs = 20000; // 20 seconds
+    this.reconnectTimer = null;
+    this.stopped = false;
     this.state = {
       dbdChallenge: null,
       twitch: { connected: false, channel: null }
@@ -29,7 +31,8 @@ class SyncClient {
   }
 
   connect() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    this.stopped = false;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
@@ -60,9 +63,12 @@ class SyncClient {
         }
       });
 
-      this.ws.on('close', () => {
+      const ws = this.ws;
+      ws.on('close', () => {
+        if (this.ws !== ws) return; // an old socket we already replaced or closed
         console.log('[SyncClient] Disconnected from remote server');
         this.connected = false;
+        this.ws = null;
         this.stopPingInterval();
         this.onConnectionChange(false);
         this.scheduleReconnect();
@@ -78,16 +84,20 @@ class SyncClient {
   }
 
   scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[SyncClient] Max reconnection attempts reached');
-      return;
-    }
+    if (this.stopped || this.reconnectTimer) return;
 
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.min(this.reconnectAttempts, 5);
+    // Back off up to 15s; after maxReconnectAttempts keep trying once a minute
+    // instead of giving up (Tower restarts shouldn't need an app relaunch).
+    const delay = this.reconnectAttempts > this.maxReconnectAttempts
+      ? 60000
+      : this.reconnectDelay * Math.min(this.reconnectAttempts, 5);
     console.log(`[SyncClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   handleMessage(message) {
@@ -153,12 +163,21 @@ class SyncClient {
   }
 
   disconnect() {
+    this.stopped = true;
     this.stopPingInterval();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-    this.connected = false;
+    if (this.ws) {
+      const ws = this.ws;
+      this.ws = null;
+      try { ws.terminate(); } catch (e) { /* already closed */ }
+    }
+    if (this.connected) {
+      this.connected = false;
+      this.onConnectionChange(false);
+    }
   }
 
   getState() {

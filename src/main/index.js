@@ -54,6 +54,9 @@ app.whenReady().then(() => {
   if (SYNC_MODE) {
     console.log('[Main] Starting in SYNC mode - connecting to remote server');
     server = require('../server/local-server.js');
+    server.start().catch(err => {
+      console.error('[Main] Local server failed to start:', err.message);
+    });
   } else {
     console.log('[Main] Starting in STANDALONE mode - full local server');
     server = require('../server/index.js');
@@ -154,6 +157,10 @@ app.on('window-all-closed', () => {
 // Clean shutdown
 app.on('before-quit', () => {
   if (server && server.close) {
-    server.close();
+    try {
+      server.close();
+    } catch (e) {
+      console.error('[Main] Error stopping local server:', e);
+    }
   }
 });
