@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DBD Challenge Widget</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      overflow: hidden;
+    }
+
+    .widget {
+      position: fixed;
+      width: 280px;
+      background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 15, 30, 0.95));
+      border: 2px solid rgba(255, 140, 0, 0.6);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
+      color: #fff;
+    }
+
+    /* Position classes */
+    .widget.top-left { top: 20px; left: 20px; }
+    .widget.top-right { top: 20px; right: 20px; }
+    .widget.bottom-left { bottom: 20px; left: 20px; }
+    .widget.bottom-right { bottom: 20px; right: 20px; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 140, 0, 0.3);
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #FF8C00;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .season-run {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .stat {
+      text-align: center;
+      flex: 1;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: bold;
+      color: #FFD700;
+    }
+
+    .stat-value.danger { color: #e94560; }
+    .stat-value.warning { color: #FF8C00; }
+    .stat-value.success { color: #4caf50; }
+
+    .stat-label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .current-killer {
+      background: linear-gradient(135deg, rgba(255, 140, 0, 0.15), rgba(233, 69, 96, 0.15));
+      border: 1px solid rgba(255, 140, 0, 0.4);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .killer-portrait {
+      width: 45px;
+      height: 45px;
+      border-radius: 6px;
+      border: 2px solid #FF8C00;
+      object-fit: cover;
+      background: #1a1a2e;
+    }
+
+    .killer-info {
+      flex: 1;
+    }
+
+    .killer-label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .killer-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #FFD700;
+    }
+
+    .killer-tier {
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #FF8C00, #e94560);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-fill.complete {
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+    }
+
+    .progress-text {
+      font-size: 11px;
+      color: #888;
+      text-align: center;
+    }
+
+    .last-game {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    .last-game-title {
+      color: #666;
+      font-size: 10px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .last-game-result {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .last-game-killer {
+      color: #FF8C00;
+      font-weight: bold;
+    }
+
+    .net-positive { color: #4caf50; }
+    .net-negative { color: #e94560; }
+
+    .hidden { display: none !important; }
+
+    .inactive-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #888;
+    }
+
+    /* Pulse animation for updates */
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .pulse {
+      animation: pulse 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="widget top-right" id="widget">
+    <div class="header">
+      <img class="logo" id="logo" src="/media/3 - Twitch Alerts/Logo.png" alt="">
+      <div>
+        <div class="title">Barebones Endurance</div>
+        <div class="season-run" id="season-run">Season 1 | Run 1</div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-value" id="points">0</div>
+        <div class="stat-label">Points</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="games">0</div>
+        <div class="stat-label">Games</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="kills">0</div>
+        <div class="stat-label">Kills</div>
+      </div>
+    </div>
+
+    <div class="current-killer hidden" id="current-killer">
+      <img class="killer-portrait" id="killer-portrait" src="" alt="">
+      <div class="killer-info">
+        <div class="killer-label">Now Playing</div>
+        <div class="killer-name" id="killer-name">-</div>
+        <div class="killer-tier" id="killer-tier">-</div>
+      </div>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+    </div>
+    <div class="progress-text" id="progress-text">0 / 44 Killers</div>
+
+    <div class="last-game hidden" id="last-game">
+      <div class="last-game-title">Last Game</div>
+      <div class="last-game-result">
+        <span class="last-game-killer" id="last-killer">-</span>
+        <span id="last-result">-</span>
+      </div>
+    </div>
+
+    <div class="inactive-overlay hidden" id="inactive-overlay">
+      Challenge Inactive
+    </div>
+  </div>
+
+  <script>
+    // Local portrait path (files are named "The Trapper.png" etc)
+    function getKillerPortrait(killerName) {
+      return '/media/killers/The ' + encodeURIComponent(killerName) + '.png';
+    }
+
+    let ws;
+    let state = {};
+
+    // Get position from URL params
+    const params = new URLSearchParams(window.location.search);
+    const position = params.get('position') || 'top-right';
+
+    const widget = document.getElementById('widget');
+    widget.className = 'widget ' + position;
+
+    function connectWebSocket() {
+      ws = new WebSocket('ws://localhost:8878');
+
+      ws.onopen = () => {
+        console.log('Connected to Stream Companion');
+        fetchState();
+      };
+
+      ws.onclose = () => {
+        console.log('Disconnected, reconnecting...');
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+      };
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'dbd-challenge-started':
+        case 'dbd-challenge-reset':
+        case 'dbd-challenge-ended':
+          state = data.data;
+          renderState();
+          break;
+
+        case 'dbd-killer-selected':
+          state.currentKiller = data.data.killer;
+          state.currentPoints = data.data.currentPoints;
+          renderState();
+          pulseElement('points');
+          break;
+
+        case 'dbd-game-recorded':
+          fetchState();
+          pulseElement('points');
+          pulseElement('games');
+          break;
+
+        case 'dbd-killer-promoted':
+          fetchState();
+          break;
+      }
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/state');
+        state = await res.json();
+        renderState();
+      } catch (e) {
+        console.error('Error fetching state:', e);
+      }
+    }
+
+    function renderState() {
+      const inactiveOverlay = document.getElementById('inactive-overlay');
+
+      if (!state.active) {
+        inactiveOverlay.classList.remove('hidden');
+      } else {
+        inactiveOverlay.classList.add('hidden');
+      }
+
+      // Season & Run
+      document.getElementById('season-run').textContent =
+        `Season ${state.season || 1} | Run ${state.runNumber || 1}`;
+
+      // Points with color coding
+      const pointsEl = document.getElementById('points');
+      pointsEl.textContent = state.currentPoints || 0;
+      pointsEl.className = 'stat-value';
+      if (state.currentPoints <= 0) {
+        pointsEl.classList.add('danger');
+      } else if (state.currentPoints <= 3) {
+        pointsEl.classList.add('warning');
+      } else if (state.currentPoints >= 10) {
+        pointsEl.classList.add('success');
+      }
+
+      // Games & Kills
+      document.getElementById('games').textContent = state.gamesPlayed || 0;
+      document.getElementById('kills').textContent = state.totalKills || 0;
+
+      // Progress
+      const totalKillers = Object.keys(state.killers || {}).length || 44;
+      const playedKillers = Object.values(state.killers || {}).filter(k => k.played).length;
+      const progressPercent = totalKillers > 0 ? Math.round((playedKillers / totalKillers) * 100) : 0;
+
+      document.getElementById('progress-text').textContent = `${playedKillers} / ${totalKillers} Killers`;
+      const progressFill = document.getElementById('progress-fill');
+      progressFill.style.width = progressPercent + '%';
+      if (progressPercent >= 100) {
+        progressFill.classList.add('complete');
+      } else {
+        progressFill.classList.remove('complete');
+      }
+
+      // Current killer
+      const currentKillerSection = document.getElementById('current-killer');
+      if (state.currentKiller) {
+        currentKillerSection.classList.remove('hidden');
+        document.getElementById('killer-name').textContent = state.currentKiller;
+
+        const killer = state.killers?.[state.currentKiller];
+        if (killer) {
+          document.getElementById('killer-tier').textContent = killer.tier.toUpperCase() + ' Tier';
+        }
+
+        const portrait = document.getElementById('killer-portrait');
+        const portraitUrl = getKillerPortrait(state.currentKiller);
+        if (portraitUrl) {
+          portrait.src = portraitUrl;
+          portrait.onerror = () => portrait.style.display = 'none';
+          portrait.onload = () => portrait.style.display = 'block';
+        } else {
+          portrait.style.display = 'none';
+        }
+      } else {
+        currentKillerSection.classList.add('hidden');
+      }
+
+      // Last game
+      const lastGameSection = document.getElementById('last-game');
+      const history = state.history || [];
+      if (history.length > 0) {
+        const lastGame = history[history.length - 1];
+        lastGameSection.classList.remove('hidden');
+        document.getElementById('last-killer').textContent = lastGame.killer;
+
+        const net = lastGame.pointsEarned - lastGame.pointsSpent;
+        const netClass = net >= 0 ? 'net-positive' : 'net-negative';
+        const netSign = net >= 0 ? '+' : '';
+        document.getElementById('last-result').innerHTML =
+          `${lastGame.kills}K = <span class="${netClass}">${netSign}${net}</span>`;
+      } else {
+        lastGameSection.classList.add('hidden');
+      }
+    }
+
+    function pulseElement(id) {
+      const el = document.getElementById(id);
+      el.classList.remove('pulse');
+      void el.offsetWidth;
+      el.classList.add('pulse');
+    }
+
+    // Initialize
+    connectWebSocket();
+    setInterval(fetchState, 30000);
+  </script>
+</body>
+</html>

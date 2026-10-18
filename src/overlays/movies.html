@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Movie Game Overlay</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: 'Roboto', sans-serif;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+    }
+
+    #scale-wrapper {
+      width: 1920px;
+      height: 1080px;
+      transform-origin: top left;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* Background effects */
+    #scale-wrapper::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        radial-gradient(circle at 20% 80%, rgba(255, 140, 0, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 215, 0, 0.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    /* Main layout */
+    #game-layout {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: grid;
+      grid-template-columns: 300px 1fr 300px;
+      gap: 20px;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #game-layout.show { opacity: 1; }
+
+    /* Panel styles */
+    .panel {
+      background: linear-gradient(180deg, rgba(20,20,30,0.95) 0%, rgba(15,15,25,0.98) 100%);
+      border-radius: 16px;
+      border: 2px solid rgba(255,140,0,0.3);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      background: linear-gradient(90deg, #FF8C00, #cc7000);
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .panel-header img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+
+    .panel-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    /* Chat panel */
+    #chat-panel { display: flex; flex-direction: column; }
+
+    #chat-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-message {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 10px 14px;
+      border-left: 3px solid #444;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(-20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .chat-message.correct {
+      background: linear-gradient(90deg, rgba(255,140,0,0.2), rgba(255,140,0,0.05));
+      border-left-color: #FFD700;
+    }
+
+    .chat-user { font-size: 13px; font-weight: 700; color: #FF8C00; margin-bottom: 4px; }
+    .chat-message.correct .chat-user { color: #FFD700; }
+    .chat-text { font-size: 14px; color: #ccc; }
+    .chat-message.correct .chat-text { color: white; font-weight: 500; }
+    .chat-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #1a1a1a;
+      background: #FFD700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+    }
+
+    #chat-empty { color: #555; text-align: center; padding: 40px 20px; font-style: italic; }
+
+    /* Center movie panel */
+    #movie-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #movie-header {
+      background: linear-gradient(90deg, #FF8C00, #cc7000);
+      padding: 20px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #movie-header-left { display: flex; align-items: center; gap: 15px; }
+    #movie-header img { width: 50px; height: 50px; object-fit: contain; }
+
+    #movie-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    #movie-progress {
+      font-family: 'Oswald', sans-serif;
+      font-size: 22px;
+      color: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.2);
+      padding: 8px 20px;
+      border-radius: 20px;
+    }
+
+    /* Timer and Points display */
+    #movie-stats {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0,0,0,0.3);
+      padding: 10px 25px;
+      border-radius: 12px;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .stat-value {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #FFD700;
+    }
+
+    #timer-box {
+      min-width: 100px;
+    }
+
+    #timer-box.warning .stat-value {
+      color: #FF6B6B;
+      animation: pulse 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    #points-box .stat-value {
+      color: #4CAF50;
+    }
+
+    #movie-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      position: relative;
+    }
+
+    /* Movie image container - 16:9 aspect ratio */
+    #movie-image-container {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16/9;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(255,140,0,0.2);
+      border: 4px solid rgba(255,140,0,0.5);
+    }
+
+    #movie-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: blur(50px) brightness(0.5);
+      transition: filter 0.5s ease;
+    }
+
+    /* Tile overlay for blocking effect - 8x5 grid for 16:9 */
+    #tile-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .tile {
+      position: absolute;
+      background: linear-gradient(135deg, #1a1a2e, #0d0d0d);
+      border: 1px solid rgba(255,140,0,0.2);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .tile.hidden {
+      opacity: 0;
+      transform: scale(0.8) rotateY(90deg);
+    }
+
+    /* Movie name reveal */
+    #movie-name-reveal {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      padding: 30px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #movie-name-reveal.show { opacity: 1; }
+
+    #movie-name-text {
+      font-family: 'Oswald', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: #FFD700;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+
+    #movie-winner {
+      font-size: 20px;
+      color: #FF8C00;
+      margin-top: 10px;
+    }
+
+    /* Leaderboard panel */
+    #leaderboard-panel { display: flex; flex-direction: column; }
+    #leaderboard-list { flex: 1; overflow-y: auto; padding: 15px; }
+
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border: 2px solid transparent;
+    }
+
+    .leaderboard-row.rank-1 {
+      background: linear-gradient(90deg, rgba(255,215,0,0.2), rgba(255,215,0,0.05));
+      border-color: #FFD700;
+    }
+    .leaderboard-row.rank-2 { border-color: silver; }
+    .leaderboard-row.rank-3 { border-color: #cd7f32; }
+
+    .leaderboard-rank { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 700; width: 40px; text-align: center; }
+    .leaderboard-row.rank-1 .leaderboard-rank { color: #FFD700; }
+    .leaderboard-row.rank-2 .leaderboard-rank { color: #C0C0C0; }
+    .leaderboard-row.rank-3 .leaderboard-rank { color: #cd7f32; }
+    .leaderboard-row:not(.rank-1):not(.rank-2):not(.rank-3) .leaderboard-rank { color: #666; }
+
+    .leaderboard-name { flex: 1; font-size: 16px; font-weight: 600; color: white; padding: 0 10px; }
+    .leaderboard-score { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 700; color: #FF8C00; }
+    .leaderboard-empty { color: #555; text-align: center; padding: 40px 20px; font-style: italic; }
+
+    /* Intro screen */
+    #intro-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 100;
+    }
+
+    #intro-container.show { opacity: 1; }
+
+    #intro-logo { width: 150px; height: auto; margin-bottom: 30px; filter: drop-shadow(0 0 30px rgba(255,140,0,0.5)); }
+
+    #intro-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 80px;
+      font-weight: 700;
+      color: #FFD700;
+      text-transform: uppercase;
+      letter-spacing: 15px;
+      margin-bottom: 50px;
+      text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 50px rgba(255,140,0,0.5);
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 50px rgba(255,140,0,0.5); }
+      to { text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 80px rgba(255,215,0,0.8); }
+    }
+
+    #intro-rules {
+      background: rgba(20,20,30,0.9);
+      border-radius: 20px;
+      border: 2px solid rgba(255,140,0,0.3);
+      padding: 40px 60px;
+      margin-bottom: 40px;
+    }
+
+    .rule-item { display: flex; align-items: center; padding: 15px 0; }
+    .rule-icon {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #FFD700;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,140,0,0.2);
+      border-radius: 50%;
+      margin-right: 25px;
+    }
+    .rule-text { font-size: 24px; color: white; }
+
+    #intro-info { display: flex; gap: 40px; margin-bottom: 50px; }
+    #intro-info span {
+      font-family: 'Oswald', sans-serif;
+      font-size: 28px;
+      color: #FFD700;
+      padding: 15px 40px;
+      background: rgba(255,140,0,0.15);
+      border-radius: 12px;
+      border: 2px solid rgba(255,140,0,0.3);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    #intro-ready {
+      font-family: 'Oswald', sans-serif;
+      font-size: 42px;
+      color: #FF8C00;
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Final leaderboard */
+    #final-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 100;
+    }
+
+    #final-container.show { opacity: 1; }
+
+    #final-logo { width: 120px; height: auto; margin-bottom: 20px; }
+    #final-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: #FFD700;
+      text-transform: uppercase;
+      letter-spacing: 10px;
+      margin-bottom: 40px;
+    }
+
+    #final-list {
+      background: rgba(20,20,30,0.9);
+      border-radius: 20px;
+      border: 2px solid rgba(255,140,0,0.3);
+      padding: 30px 50px;
+      min-width: 600px;
+    }
+
+    .final-row {
+      display: flex;
+      align-items: center;
+      padding: 15px 20px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      border: 2px solid transparent;
+    }
+
+    .final-row.rank-1 { background: linear-gradient(90deg, rgba(255,215,0,0.25), rgba(255,215,0,0.05)); border-color: #FFD700; transform: scale(1.05); }
+    .final-row.rank-2 { border-color: silver; }
+    .final-row.rank-3 { border-color: #cd7f32; }
+
+    .final-rank { font-family: 'Oswald', sans-serif; font-size: 32px; font-weight: 700; width: 60px; text-align: center; }
+    .final-row.rank-1 .final-rank { color: #FFD700; }
+    .final-row.rank-2 .final-rank { color: #C0C0C0; }
+    .final-row.rank-3 .final-rank { color: #cd7f32; }
+    .final-row:not(.rank-1):not(.rank-2):not(.rank-3) .final-rank { color: #666; }
+
+    .final-name { flex: 1; font-size: 26px; font-weight: 600; color: white; padding: 0 20px; }
+    .final-score { font-family: 'Oswald', sans-serif; font-size: 32px; font-weight: 700; color: #FF8C00; }
+
+    .hidden { display: none !important; }
+
+    #status {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.2);
+    }
+
+    /* Correct answer animation */
+    @keyframes correctPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,215,0,0.7); }
+      50% { transform: scale(1.02); box-shadow: 0 0 40px 20px rgba(255,215,0,0.3); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,215,0,0); }
+    }
+
+    #movie-image-container.correct {
+      animation: correctPulse 0.5s ease;
+      border-color: #FFD700;
+    }
+  </style>
+</head>
+<body>
+  <div id="scale-wrapper">
+    <!-- Intro Screen -->
+    <div id="intro-container" class="hidden">
+      <img id="intro-logo" src="/media/3 - Twitch Alerts/Logo.png" alt="Soupy Games">
+      <div id="intro-title">MOVIE GAME!</div>
+      <div id="intro-rules">
+        <div class="rule-item">
+          <span class="rule-icon">1</span>
+          <span class="rule-text">Guess the movie from the hidden image</span>
+        </div>
+        <div class="rule-item">
+          <span class="rule-icon">2</span>
+          <span class="rule-text">Type your answer in chat</span>
+        </div>
+        <div class="rule-item">
+          <span class="rule-icon">3</span>
+          <span class="rule-text">Earlier guesses = more points!</span>
+        </div>
+        <div class="rule-item">
+          <span class="rule-icon">4</span>
+          <span class="rule-text">Most points wins!</span>
+        </div>
+      </div>
+      <div id="intro-info">
+        <span id="intro-movies">5 Movies</span>
+        <span id="intro-time">60 Seconds Each</span>
+        <span id="intro-points">500 Points Max</span>
+      </div>
+      <div id="intro-ready">GET READY...</div>
+    </div>
+
+    <!-- Main Game Layout -->
+    <div id="game-layout" class="hidden">
+      <!-- Left: Chat -->
+      <div id="chat-panel" class="panel">
+        <div class="panel-header">
+          <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+          <span class="panel-title">Live Chat</span>
+        </div>
+        <div id="chat-list">
+          <div id="chat-empty">Waiting for guesses...</div>
+        </div>
+      </div>
+
+      <!-- Center: Movie -->
+      <div id="movie-panel" class="panel">
+        <div id="movie-header">
+          <div id="movie-header-left">
+            <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+            <span id="movie-title">Guess The Movie</span>
+          </div>
+          <div id="movie-stats">
+            <div id="timer-box" class="stat-box">
+              <span class="stat-label">Time</span>
+              <span id="timer-value" class="stat-value">0:00</span>
+            </div>
+            <div id="points-box" class="stat-box">
+              <span class="stat-label">Points</span>
+              <span id="points-value" class="stat-value">500</span>
+            </div>
+            <span id="movie-progress">Movie 1 of 5</span>
+          </div>
+        </div>
+        <div id="movie-content">
+          <div id="movie-image-container">
+            <img id="movie-image" src="" alt="">
+            <div id="tile-overlay"></div>
+            <div id="movie-name-reveal">
+              <div id="movie-name-text"></div>
+              <div id="movie-winner"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Leaderboard -->
+      <div id="leaderboard-panel" class="panel">
+        <div class="panel-header">
+          <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+          <span class="panel-title">Leaderboard</span>
+        </div>
+        <div id="leaderboard-list">
+          <div class="leaderboard-empty">No scores yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final Leaderboard -->
+    <div id="final-container" class="hidden">
+      <img id="final-logo" src="/media/3 - Twitch Alerts/Logo.png" alt="Soupy Games">
+      <div id="final-title">Final Scores</div>
+      <div id="final-list"></div>
+    </div>
+  </div>
+
+  <div id="status">Connecting...</div>
+
+  <script>
+    // Scale wrapper
+    const scaleWrapper = document.getElementById('scale-wrapper');
+    const BASE_WIDTH = 1920;
+    const BASE_HEIGHT = 1080;
+
+    function updateScale() {
+      const scaleX = window.innerWidth / BASE_WIDTH;
+      const scaleY = window.innerHeight / BASE_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
+      scaleWrapper.style.transform = `scale(${scale})`;
+      const offsetX = (window.innerWidth - BASE_WIDTH * scale) / 2;
+      const offsetY = (window.innerHeight - BASE_HEIGHT * scale) / 2;
+      scaleWrapper.style.left = offsetX + 'px';
+      scaleWrapper.style.top = offsetY + 'px';
+    }
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
+  </script>
+
+  <script>
+    let ws;
+    const LOGO_URL = '/media/3 - Twitch Alerts/Logo.png';
+
+    // Elements
+    const introContainer = document.getElementById('intro-container');
+    const introMovies = document.getElementById('intro-movies');
+    const introPoints = document.getElementById('intro-points');
+    const gameLayout = document.getElementById('game-layout');
+    const movieProgress = document.getElementById('movie-progress');
+    const movieImage = document.getElementById('movie-image');
+    const movieImageContainer = document.getElementById('movie-image-container');
+    const tileOverlay = document.getElementById('tile-overlay');
+    const movieNameReveal = document.getElementById('movie-name-reveal');
+    const movieNameText = document.getElementById('movie-name-text');
+    const movieWinner = document.getElementById('movie-winner');
+    const chatList = document.getElementById('chat-list');
+    const leaderboardList = document.getElementById('leaderboard-list');
+    const finalContainer = document.getElementById('final-container');
+    const finalList = document.getElementById('final-list');
+    const statusEl = document.getElementById('status');
+
+    // State
+    let currentLeaderboard = {};
+    let chatMessages = [];
+    const MAX_CHAT_MESSAGES = 50;
+    const TOTAL_TILES = 40; // 8x5 grid
+    let tileRevealOrder = [];
+    let timePerMovie = 60;
+    let tileElements = []; // Store tile elements directly
+    const timerValue = document.getElementById('timer-value');
+    const pointsValue = document.getElementById('points-value');
+    const timerBox = document.getElementById('timer-box');
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:8878');
+      ws.onopen = () => { statusEl.textContent = 'Connected'; };
+      ws.onclose = () => {
+        statusEl.textContent = 'Disconnected';
+        setTimeout(connect, 3000);
+      };
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        handleMessage(data);
+      };
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'movie-intro':
+          showIntro(data.data);
+          break;
+
+        case 'movie-started':
+          currentLeaderboard = {};
+          chatMessages = [];
+          clearChat();
+          clearLeaderboard();
+          break;
+
+        case 'movie-question':
+          showMovie(data.data);
+          chatMessages = [];
+          clearChat();
+          break;
+
+        case 'movie-reveal':
+          updateReveal(data.data);
+          break;
+
+        case 'movie-chat':
+          addChatMessage(data.data);
+          break;
+
+        case 'movie-correct':
+          showCorrect(data.data);
+          break;
+
+        case 'movie-timeout':
+          showTimeout(data.data);
+          break;
+
+        case 'movie-ended':
+          showFinalLeaderboard(data.data.leaderboard);
+          break;
+      }
+    }
+
+    function showIntro(data) {
+      finalContainer.classList.add('hidden');
+      finalContainer.classList.remove('show');
+      gameLayout.classList.add('hidden');
+      gameLayout.classList.remove('show');
+
+      introMovies.textContent = `${data.maxMovies} Movies`;
+      document.getElementById('intro-time').textContent = `${data.timePerMovie} Seconds Each`;
+      introPoints.textContent = `${data.pointsPerMovie} Points Max`;
+      timePerMovie = data.timePerMovie;
+
+      introContainer.classList.remove('hidden');
+      introContainer.classList.add('show');
+    }
+
+    function showMovie(data) {
+      introContainer.classList.add('hidden');
+      introContainer.classList.remove('show');
+      finalContainer.classList.add('hidden');
+      finalContainer.classList.remove('show');
+
+      movieProgress.textContent = `Movie ${data.movieNumber} of ${data.maxMovies}`;
+
+      // Reset image state first
+      movieImage.style.filter = 'blur(50px) brightness(0.5)';
+      movieImageContainer.classList.remove('correct');
+      movieNameReveal.classList.remove('show');
+
+      // Store tile reveal order from server (must be before createTiles)
+      tileRevealOrder = data.tileRevealOrder || [];
+      timePerMovie = data.timePerMovie || 60;
+
+
+      // Create fresh tiles (all visible)
+      createTiles();
+
+      // Initialize timer and points display
+      updateTimerDisplay(data.timeRemaining || timePerMovie);
+      pointsValue.textContent = data.pointsAvailable || 500;
+      timerBox.classList.remove('warning');
+
+      // Load image after everything is set up
+      movieImage.src = data.imagePath;
+
+      gameLayout.classList.remove('hidden');
+      gameLayout.classList.add('show');
+    }
+
+    function updateTimerDisplay(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      timerValue.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+      // Add warning class when less than 10 seconds
+      if (seconds <= 10 && seconds > 0) {
+        timerBox.classList.add('warning');
+      } else {
+        timerBox.classList.remove('warning');
+      }
+    }
+
+    const TILE_COLS = 8;
+    const TILE_ROWS = 5;
+
+    function createTiles() {
+      tileOverlay.innerHTML = '';
+      tileElements = [];
+
+      const tileWidth = 100 / TILE_COLS;
+      const tileHeight = 100 / TILE_ROWS;
+
+      for (let i = 0; i < TOTAL_TILES; i++) {
+        const row = Math.floor(i / TILE_COLS);
+        const col = i % TILE_COLS;
+
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.dataset.index = i;
+
+        // Absolute position - tiles cannot move
+        tile.style.left = (col * tileWidth) + '%';
+        tile.style.top = (row * tileHeight) + '%';
+        tile.style.width = tileWidth + '%';
+        tile.style.height = tileHeight + '%';
+
+        tileOverlay.appendChild(tile);
+        tileElements[i] = tile;
+      }
+    }
+
+    function updateReveal(data) {
+      const level = data.revealLevel || 0;
+
+      // Update timer and points display
+      if (data.timeRemaining !== undefined) {
+        updateTimerDisplay(data.timeRemaining);
+      }
+      if (data.pointsAvailable !== undefined) {
+        pointsValue.textContent = data.pointsAvailable;
+      }
+
+      // Update blur (50px at 0%, 0px at 100%)
+      const blur = Math.max(0, 50 - (level / 100 * 50));
+      const brightness = 0.5 + (level / 100 * 0.5);
+      movieImage.style.filter = `blur(${blur}px) brightness(${brightness})`;
+
+      // Only reveal tiles if we have a valid reveal order
+      if (!tileRevealOrder || tileRevealOrder.length === 0) {
+        return;
+      }
+
+      // Remove tiles based on level using pre-determined random order
+      const tilesToReveal = Math.floor((level / 100) * TOTAL_TILES);
+
+      // Use the pre-shuffled order from server - use stored tile references
+      for (let i = 0; i < tilesToReveal && i < tileRevealOrder.length; i++) {
+        const tileIndex = tileRevealOrder[i];
+        const tile = tileElements[tileIndex];
+        if (tile && !tile.classList.contains('hidden')) {
+          tile.classList.add('hidden');
+        }
+      }
+    }
+
+    function showCorrect(data) {
+      // Fully reveal
+      movieImage.style.filter = 'blur(0px) brightness(1)';
+      tileOverlay.querySelectorAll('.tile').forEach(t => t.classList.add('hidden'));
+
+      // Update timer to show time remaining when answered
+      if (data.timeRemaining !== undefined) {
+        updateTimerDisplay(data.timeRemaining);
+      }
+      timerBox.classList.remove('warning');
+      pointsValue.textContent = data.points;
+
+      movieImageContainer.classList.add('correct');
+      movieNameText.textContent = data.movieName;
+      movieWinner.textContent = `${data.user} +${data.points} points!`;
+      movieNameReveal.classList.add('show');
+
+      // Mark chat message
+      if (data.chatMessageId) {
+        markChatCorrect(data.chatMessageId, data.points);
+      }
+
+      // Update leaderboard
+      updateLeaderboard(data.user, data.points);
+    }
+
+    function showTimeout(data) {
+      movieImage.style.filter = 'blur(0px) brightness(1)';
+      tileOverlay.querySelectorAll('.tile').forEach(t => t.classList.add('hidden'));
+
+      // Show 0:00 and 0 points
+      updateTimerDisplay(0);
+      timerBox.classList.remove('warning');
+      pointsValue.textContent = '0';
+
+      movieNameText.textContent = data.movieName;
+      movieWinner.textContent = data.skipped ? 'Skipped!' : 'Time\'s up! No one got it.';
+      movieNameReveal.classList.add('show');
+    }
+
+    // Chat functions
+    function clearChat() {
+      chatList.innerHTML = '<div id="chat-empty">Waiting for guesses...</div>';
+    }
+
+    function addChatMessage(msg) {
+      const empty = document.getElementById('chat-empty');
+      if (empty) empty.remove();
+
+      chatMessages.push(msg);
+      if (chatMessages.length > MAX_CHAT_MESSAGES) {
+        chatMessages.shift();
+        chatList.firstElementChild?.remove();
+      }
+
+      const div = document.createElement('div');
+      div.className = 'chat-message';
+      div.dataset.id = msg.id;
+      div.innerHTML = `
+        <div class="chat-user">${escapeHtml(msg.user)}</div>
+        <div class="chat-text">${escapeHtml(msg.message)}</div>
+      `;
+      chatList.appendChild(div);
+      chatList.scrollTop = chatList.scrollHeight;
+    }
+
+    function markChatCorrect(msgId, points) {
+      const div = chatList.querySelector(`[data-id="${msgId}"]`);
+      if (div) {
+        div.classList.add('correct');
+        const userEl = div.querySelector('.chat-user');
+        if (userEl) {
+          userEl.innerHTML += `<span class="chat-badge">+${points}</span>`;
+        }
+      }
+    }
+
+    // Leaderboard functions
+    function clearLeaderboard() {
+      currentLeaderboard = {};
+      leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet</div>';
+    }
+
+    function updateLeaderboard(user, points) {
+      if (!currentLeaderboard[user]) currentLeaderboard[user] = 0;
+      currentLeaderboard[user] += points;
+      renderLeaderboard(user);
+    }
+
+    function renderLeaderboard(highlightUser = null) {
+      const sorted = Object.entries(currentLeaderboard)
+        .map(([name, points]) => ({ name, points }))
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 10);
+
+      if (sorted.length === 0) {
+        leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet</div>';
+        return;
+      }
+
+      leaderboardList.innerHTML = sorted.map((player, i) => {
+        const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+        return `
+          <div class="leaderboard-row ${rankClass}">
+            <div class="leaderboard-rank">#${i + 1}</div>
+            <div class="leaderboard-name">${escapeHtml(player.name)}</div>
+            <div class="leaderboard-score">${player.points}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function showFinalLeaderboard(leaderboard) {
+      gameLayout.classList.add('hidden');
+      gameLayout.classList.remove('show');
+
+      finalList.innerHTML = leaderboard.slice(0, 10).map((player, i) => {
+        const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+        return `
+          <div class="final-row ${rankClass}">
+            <div class="final-rank">#${i + 1}</div>
+            <div class="final-name">${escapeHtml(player.name)}</div>
+            <div class="final-score">${player.points}</div>
+          </div>
+        `;
+      }).join('');
+
+      finalContainer.classList.remove('hidden');
+      finalContainer.classList.add('show');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    connect();
+  </script>
+</body>
+</html>

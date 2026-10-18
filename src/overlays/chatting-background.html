@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBD Chatting Background</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #000;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+
+    .scale-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+      transition: transform 0.2s ease;
+    }
+
+    .background-container {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      background: linear-gradient(135deg, #000 0%, #0a0a0a 50%, #111 100%);
+    }
+
+    /* Particles */
+    .particles {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .particle {
+      position: absolute;
+      width: 4px; height: 4px;
+      background: rgba(255, 140, 0, 0.5);
+      border-radius: 50%;
+      animation: float 15s infinite ease-in-out;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+    }
+
+    /* Game area glow effect */
+    .game-glow {
+      position: absolute;
+      top: 60px;
+      left: 60px;
+      width: 1024px;
+      height: 576px;
+      background: transparent;
+      box-shadow: 0 0 50px rgba(255, 140, 0, 0.3);
+    }
+    .game-glow::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      background: linear-gradient(135deg, #FF8C00, #FFD700, #FF8C00);
+      z-index: -1;
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+    @keyframes borderGlow {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scale-wrapper" id="scale-wrapper">
+    <div class="background-container">
+      <!-- Particles -->
+      <div class="particles" id="particles"></div>
+
+      <!-- Game area glow -->
+      <div class="game-glow"></div>
+    </div>
+  </div>
+
+  <script>
+    const DESIGN_WIDTH = 1920;
+    const DESIGN_HEIGHT = 1080;
+
+    function updateScale() {
+      const wrapper = document.getElementById('scale-wrapper');
+      const isOBS = window.obsstudio || (window.innerWidth === DESIGN_WIDTH && window.innerHeight === DESIGN_HEIGHT);
+
+      if (isOBS) {
+        wrapper.style.transform = 'scale(1)';
+        wrapper.style.left = '0';
+        wrapper.style.top = '0';
+        return;
+      }
+
+      const scaleX = window.innerWidth / DESIGN_WIDTH;
+      const scaleY = window.innerHeight / DESIGN_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
+
+      wrapper.style.transform = `scale(${scale})`;
+
+      const offsetX = (window.innerWidth - DESIGN_WIDTH * scale) / 2;
+      const offsetY = (window.innerHeight - DESIGN_HEIGHT * scale) / 2;
+      wrapper.style.left = offsetX + 'px';
+      wrapper.style.top = offsetY + 'px';
+    }
+
+    function createParticles() {
+      const container = document.getElementById('particles');
+      for (let i = 0; i < 30; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 100 + '%';
+        particle.style.animationDelay = Math.random() * 15 + 's';
+        particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+        container.appendChild(particle);
+      }
+    }
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
+    createParticles();
+  </script>
+</body>
+</html>

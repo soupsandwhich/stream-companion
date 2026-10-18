@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Alerts Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: transparent; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+
+    #alert-container {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #alert-container.show { opacity: 1; }
+
+    /* Profile image - top */
+    #profile-image {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 4px solid #FF8C00;
+      box-shadow: 0 0 30px rgba(255,140,0,0.6);
+      object-fit: cover;
+      margin-bottom: 15px;
+    }
+
+    /* Text - middle */
+    #alert-text {
+      font-size: 32px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8), 0 0 20px rgba(255,140,0,0.5);
+      margin-bottom: 8px;
+    }
+
+    #alert-subtext {
+      font-size: 20px;
+      color: #ccc;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+      margin-bottom: 15px;
+    }
+
+    /* Logo - bottom */
+    #logo-image {
+      width: 80px;
+      height: auto;
+      margin-top: 10px;
+      opacity: 0.9;
+    }
+
+    /* Raid container - fullscreen confetti with overlay */
+    #raid-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #raid-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #raid-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 10;
+    }
+
+    #status {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- Standard alert container -->
+  <div id="alert-container">
+    <img id="profile-image" class="hidden">
+    <div id="alert-text"></div>
+    <div id="alert-subtext"></div>
+    <img id="logo-image" class="hidden">
+  </div>
+
+  <!-- Raid container with fullscreen confetti -->
+  <div id="raid-container" class="hidden">
+    <video id="raid-video" autoplay></video>
+    <div id="raid-overlay">
+      <img id="raid-profile" style="width:150px;height:150px;border-radius:50%;border:5px solid #FF8C00;box-shadow:0 0 40px rgba(255,140,0,0.8);object-fit:cover;margin-bottom:20px;">
+      <div id="raid-text" style="font-size:42px;font-weight:bold;color:white;text-shadow:3px 3px 6px rgba(0,0,0,0.9),0 0 30px rgba(255,140,0,0.7);margin-bottom:10px;"></div>
+      <div id="raid-subtext" style="font-size:24px;color:#ccc;text-shadow:2px 2px 4px rgba(0,0,0,0.8);margin-bottom:20px;"></div>
+      <img id="raid-logo" style="width:100px;height:auto;opacity:0.9;">
+    </div>
+  </div>
+
+  <div id="status">Connecting...</div>
+
+  <script>
+    const API_BASE = 'http://localhost:8877';
+    const MEDIA_BASE = '/media/3 - Twitch Alerts';
+    const SOUNDS_BASE = `${API_BASE}/sounds`;
+    const LOGO_URL = `${MEDIA_BASE}/Logo.png`;
+
+    // Sound configuration - loaded from server
+    let alertSoundSettings = {
+      follow: '',
+      subscription: '',
+      raid: '',
+      cheer: '',
+      gift: '',
+      volume: 70
+    };
+
+    const RAID_VIDEOS = [
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-1.mkv`,
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-2.mkv`,
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-3.mkv`,
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-4.mkv`,
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-5.mkv`,
+      `${MEDIA_BASE}/Raid Assets/RaidConfetti-6.mkv`
+    ];
+
+    // Audio element for playing sounds
+    const audioPlayer = new Audio();
+
+    // Load sound settings from server
+    async function loadSoundSettings() {
+      try {
+        const res = await fetch(`${API_BASE}/api/sounds/alerts`);
+        const data = await res.json();
+        if (data.settings) {
+          alertSoundSettings = data.settings;
+          audioPlayer.volume = (alertSoundSettings.volume || 70) / 100;
+          console.log('[Sound] Loaded settings:', alertSoundSettings);
+        }
+      } catch (e) {
+        console.log('[Sound] Could not load settings:', e.message);
+      }
+    }
+
+    function playAlertSound(type) {
+      const soundFile = alertSoundSettings[type];
+      if (!soundFile) {
+        console.log('[Sound] No sound configured for:', type);
+        return;
+      }
+      const soundUrl = `${SOUNDS_BASE}/${soundFile}`;
+      audioPlayer.src = soundUrl;
+      audioPlayer.play().catch(e => console.log('[Sound] Could not play:', e.message));
+    }
+
+    // Play a custom sound by name (for Stream Deck triggers)
+    function playSound(soundName) {
+      const soundUrl = `${SOUNDS_BASE}/${soundName}`;
+      audioPlayer.src = soundUrl;
+      audioPlayer.play().catch(e => console.log('[Sound] Could not play:', e.message));
+    }
+
+    let ws;
+    const container = document.getElementById('alert-container');
+    const profileEl = document.getElementById('profile-image');
+    const textEl = document.getElementById('alert-text');
+    const subtextEl = document.getElementById('alert-subtext');
+    const logoEl = document.getElementById('logo-image');
+    const statusEl = document.getElementById('status');
+
+    // Raid elements
+    const raidContainer = document.getElementById('raid-container');
+    const raidVideo = document.getElementById('raid-video');
+    const raidProfile = document.getElementById('raid-profile');
+    const raidText = document.getElementById('raid-text');
+    const raidSubtext = document.getElementById('raid-subtext');
+    const raidLogo = document.getElementById('raid-logo');
+
+    let alertQueue = [];
+    let showing = false;
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:8878');
+      ws.onopen = () => { statusEl.textContent = 'Connected'; };
+      ws.onclose = () => {
+        statusEl.textContent = 'Disconnected';
+        setTimeout(connect, 3000);
+      };
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'new-alert') {
+          alertQueue.push(data.data);
+          processQueue();
+        }
+        // Handle sound triggers from Stream Deck
+        if (data.type === 'play-sound') {
+          playSound(data.data.sound);
+        }
+        // Handle custom overlay actions
+        if (data.type === 'overlay-action') {
+          handleOverlayAction(data.data);
+        }
+        // Handle sound settings update
+        if (data.type === 'alert-sounds-update') {
+          alertSoundSettings = data.data;
+          audioPlayer.volume = (alertSoundSettings.volume || 70) / 100;
+          console.log('[Sound] Settings updated:', alertSoundSettings);
+        }
+      };
+    }
+
+    function processQueue() {
+      if (showing || alertQueue.length === 0) return;
+      showing = true;
+      const alert = alertQueue.shift();
+      showAlert(alert);
+    }
+
+    function showAlert(alert) {
+      const type = (alert.type || 'default').toLowerCase();
+
+      // Play sound for this alert type
+      playAlertSound(type);
+
+      if (type === 'raid') {
+        showRaidAlert(alert);
+      } else {
+        showStandardAlert(alert, type);
+      }
+    }
+
+    function showStandardAlert(alert, type) {
+      // Reset all elements
+      profileEl.classList.add('hidden');
+      logoEl.classList.add('hidden');
+      raidContainer.classList.add('hidden');
+      textEl.textContent = '';
+      subtextEl.textContent = '';
+
+      // Profile image - top (only if URL provided)
+      const profileUrl = alert.profileImage || alert.userProfileImageUrl || alert.targetUserProfileImageUrl;
+      if (profileUrl) {
+        profileEl.src = profileUrl;
+        profileEl.onload = () => profileEl.classList.remove('hidden');
+        profileEl.onerror = () => profileEl.classList.add('hidden');
+      }
+
+      // Text - middle (only if message exists)
+      const message = alert.message || alert.name;
+      if (message) {
+        textEl.textContent = message;
+      }
+      if (alert.subtext) {
+        subtextEl.textContent = alert.subtext;
+      }
+
+      // Logo - bottom (check if loads)
+      logoEl.src = LOGO_URL;
+      logoEl.onload = () => logoEl.classList.remove('hidden');
+      logoEl.onerror = () => logoEl.classList.add('hidden');
+
+      // Show alert
+      container.classList.add('show');
+      setTimeout(hideAlert, 5000);
+    }
+
+    function showRaidAlert(alert) {
+      // Hide standard container
+      container.classList.remove('show');
+
+      // Pick random confetti video
+      const randomVideo = RAID_VIDEOS[Math.floor(Math.random() * RAID_VIDEOS.length)];
+
+      // Reset raid elements
+      raidProfile.style.display = 'none';
+      raidText.textContent = '';
+      raidSubtext.textContent = '';
+
+      // Profile image (only if URL provided and loads)
+      const profileUrl = alert.profileImage || alert.userProfileImageUrl || alert.targetUserProfileImageUrl;
+      if (profileUrl) {
+        raidProfile.src = profileUrl;
+        raidProfile.onload = () => raidProfile.style.display = 'block';
+        raidProfile.onerror = () => raidProfile.style.display = 'none';
+      }
+
+      // Text (only if provided)
+      if (alert.message) {
+        raidText.textContent = alert.message;
+      }
+      if (alert.subtext) {
+        raidSubtext.textContent = alert.subtext;
+      }
+
+      // Logo (check if loads)
+      raidLogo.src = LOGO_URL;
+      raidLogo.onload = () => raidLogo.style.display = 'block';
+      raidLogo.onerror = () => raidLogo.style.display = 'none';
+
+      // Start confetti video
+      raidVideo.src = randomVideo;
+
+      raidVideo.oncanplay = () => {
+        raidContainer.classList.remove('hidden');
+      };
+      raidVideo.onended = () => hideRaidAlert();
+      raidVideo.onerror = () => {
+        // Video failed - show as standard alert instead
+        raidContainer.classList.add('hidden');
+        showStandardAlert(alert, 'raid');
+      };
+      raidVideo.play().catch(() => {
+        raidContainer.classList.add('hidden');
+        showStandardAlert(alert, 'raid');
+      });
+    }
+
+    function hideAlert() {
+      container.classList.remove('show');
+      setTimeout(() => {
+        showing = false;
+        processQueue();
+      }, 500);
+    }
+
+    function hideRaidAlert() {
+      raidContainer.classList.add('hidden');
+      setTimeout(() => {
+        showing = false;
+        processQueue();
+      }, 500);
+    }
+
+    function getDefaultText(type) {
+      switch(type) {
+        case 'follow': return 'New Follower!';
+        case 'subscriber':
+        case 'sub': return 'New Subscriber!';
+        case 'raid': return 'Incoming Raid!';
+        case 'bits':
+        case 'cheer': return 'Cheer!';
+        case 'donation': return 'Donation!';
+        default: return 'Alert!';
+      }
+    }
+
+    // Handle custom overlay actions (for Stream Deck triggers)
+    function handleOverlayAction(action) {
+      switch (action.action) {
+        case 'celebration':
+          // Could add confetti or celebration effect
+          console.log('[Overlay] Celebration triggered');
+          break;
+        case 'flash':
+          // Screen flash effect
+          document.body.style.background = 'white';
+          setTimeout(() => { document.body.style.background = 'transparent'; }, 100);
+          break;
+        default:
+          console.log('[Overlay] Unknown action:', action.action);
+      }
+    }
+
+    // Initialize
+    loadSoundSettings();
+    connect();
+  </script>
+</body>
+</html>

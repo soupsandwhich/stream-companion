@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+.env
+.env.*
+*.log
+# Local settings / tokens (the app keeps these in %APPDATA%\StreamCompanion, but never commit copies)
+settings.json
+companion.json
+data/
+*.token*

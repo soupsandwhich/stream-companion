@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stats Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: transparent; font-family: 'Segoe UI', sans-serif; }
+    .stats {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 52, 96, 0.85);
+      padding: 15px 20px;
+      border-radius: 8px;
+      color: white;
+    }
+    .stat { display: flex; justify-content: space-between; gap: 30px; margin: 5px 0; }
+    .stat-label { color: #aaa; font-size: 13px; }
+    .stat-value { color: #e94560; font-weight: bold; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="stats">
+    <div class="stat"><span class="stat-label">Alerts Today</span><span class="stat-value" id="alerts">0</span></div>
+    <div class="stat"><span class="stat-label">Actions</span><span class="stat-value" id="actions">0</span></div>
+    <div class="stat"><span class="stat-label">Games</span><span class="stat-value" id="games">0</span></div>
+  </div>
+  <script>
+    async function update() {
+      try {
+        const [alerts, actions, games] = await Promise.all([
+          fetch('http://localhost:8877/api/alerts').then(r => r.json()),
+          fetch('http://localhost:8877/api/actions').then(r => r.json()),
+          fetch('http://localhost:8877/api/games').then(r => r.json())
+        ]);
+        document.getElementById('alerts').textContent = alerts.length;
+        document.getElementById('actions').textContent = actions.length;
+        document.getElementById('games').textContent = games.length;
+      } catch (e) {}
+    }
+    update();
+    setInterval(update, 5000);
+  </script>
+</body>
+</html>

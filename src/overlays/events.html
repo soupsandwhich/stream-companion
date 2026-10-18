@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Events Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: transparent; font-family: 'Segoe UI', sans-serif; }
+    .events {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+    }
+    .event {
+      background: rgba(15, 52, 96, 0.9);
+      color: white;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      border-left: 4px solid #e94560;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .event-type { font-size: 11px; color: #e94560; text-transform: uppercase; }
+    .event-msg { font-size: 14px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="events" id="events"></div>
+  <script>
+    const eventsEl = document.getElementById('events');
+    let ws;
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:8878');
+      ws.onclose = () => setTimeout(connect, 3000);
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'new-alert') addEvent(data.data);
+      };
+    }
+
+    function addEvent(evt) {
+      const div = document.createElement('div');
+      div.className = 'event';
+      div.innerHTML = `<div class="event-type">${evt.type || 'event'}</div><div class="event-msg">${evt.message || evt.name || ''}</div>`;
+      eventsEl.insertBefore(div, eventsEl.firstChild);
+      if (eventsEl.children.length > 5) eventsEl.removeChild(eventsEl.lastChild);
+      setTimeout(() => div.remove(), 10000);
+    }
+
+    connect();
+  </script>
+</body>
+</html>

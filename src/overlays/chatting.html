@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBD Chatting Overlay</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: 'Poppins', sans-serif;
+      background: transparent;
+      color: #fff;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+
+    .scale-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+      transition: transform 0.2s ease;
+    }
+
+    .overlay-container {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      background: transparent;
+    }
+
+    .scale-indicator {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(255, 140, 0, 0.9);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      color: #000;
+    }
+    .scale-indicator.visible { opacity: 1; }
+
+    /* ===== LEFT SIDE ===== */
+
+    .game-area {
+      position: absolute;
+      top: 60px;
+      left: 60px;
+      width: 1024px;
+      height: 576px;
+      background: transparent;
+      border: 3px solid;
+      border-image: linear-gradient(135deg, #FF8C00, #FFD700, #FF8C00) 1;
+      pointer-events: none;
+    }
+
+    /* Goals - Bottom right, under supporters card, next to ticker */
+    .goals-section {
+      position: absolute;
+      bottom: 20px;
+      left: 1104px;
+      right: 60px;
+      animation: slideInUp 0.6s ease-out 0.2s both;
+    }
+    @keyframes slideInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .goals-card {
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 16px 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+    }
+    .goals-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFD700;
+      margin-bottom: 14px;
+    }
+    .goals-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .goal-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .goal-label { color: #999; }
+    .goal-value { font-weight: 700; color: #FFD700; }
+    .goal-bar {
+      height: 12px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .goal-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #FF8C00, #FFD700);
+      border-radius: 6px;
+      transition: width 1s ease-out;
+      position: relative;
+    }
+    .goal-progress::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* DBD Stats Section - Middle */
+    .dbd-stats-section {
+      position: absolute;
+      top: 60px;
+      left: 1110px;
+      bottom: 140px;
+      width: 360px;
+      animation: slideInUp 0.6s ease-out 0.3s both;
+      display: flex;
+      flex-direction: column;
+    }
+    .dbd-stats-card {
+      flex: 1;
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+    }
+    .dbd-stats-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFD700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dbd-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .dbd-stat-item {
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .dbd-stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFD700;
+      line-height: 1;
+    }
+    .dbd-stat-value.positive { color: #22c55e; }
+    .dbd-stat-value.bloodpoints { color: #FFD700; font-size: 20px; }
+    .dbd-stat-label {
+      font-size: 9px;
+      color: #888;
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Killer Stats Cycling */
+    .killer-stats-section {
+      margin-top: 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      padding: 12px;
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .killer-stats-header {
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .killer-stats-page {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      justify-content: flex-start;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .killer-stat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: rgba(255, 140, 0, 0.1);
+      border-radius: 6px;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+    .killer-stat-row:hover {
+      background: rgba(255, 140, 0, 0.2);
+    }
+    .killer-portrait {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      object-fit: cover;
+      border: 1px solid rgba(255, 140, 0, 0.4);
+      background: rgba(0,0,0,0.5);
+      flex-shrink: 0;
+    }
+    .killer-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .killer-winrate {
+      font-size: 12px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+    .killer-winrate.low { color: #ef4444; }
+    .killer-winrate.mid { color: #f59e0b; }
+    .killer-streak {
+      font-size: 10px;
+      color: #FFD700;
+      padding: 2px 6px;
+      background: rgba(255, 140, 0, 0.2);
+      border-radius: 4px;
+    }
+    .page-dots {
+      display: flex;
+      gap: 4px;
+    }
+    .page-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 140, 0, 0.3);
+    }
+    .page-dot.active {
+      background: #FFD700;
+    }
+
+    /* Stats Panel Rotation */
+    .stats-panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .stats-panel.active {
+      display: flex;
+    }
+
+    /* Streak Display */
+    .streak-display {
+      display: flex;
+      gap: 12px;
+    }
+    .streak-item {
+      flex: 1;
+      background: rgba(0,0,0,0.4);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .streak-label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    .streak-killer-img {
+      width: 80px;
+      height: 80px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 3px solid rgba(255, 140, 0, 0.5);
+      background: rgba(0,0,0,0.5);
+      margin-bottom: 10px;
+    }
+    .streak-killer-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .streak-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFD700;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .streak-value.active { color: #22c55e; }
+    .streak-value::before {
+      content: '🔥';
+      font-size: 22px;
+    }
+
+    /* Event items for activity panel */
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .event-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .event-icon.follow { background: linear-gradient(135deg, #FF8C00, #FFD700); }
+    .event-icon.subscription { background: linear-gradient(135deg, #00cc66, #00aa55); }
+    .event-icon.raid { background: linear-gradient(135deg, #ff6600, #ff8533); }
+    .event-icon.cheer { background: linear-gradient(135deg, #FFD700, #FFA500); }
+    .event-icon.gift { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+    .event-text { font-size: 12px; flex: 1; }
+    .event-text strong { color: #FFD700; }
+    .event-time { font-size: 10px; color: #666; }
+
+    /* ===== RIGHT SIDE ===== */
+
+    .right-column {
+      position: absolute;
+      top: 60px;
+      right: 60px;
+      bottom: 140px;
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: slideInRight 0.6s ease-out;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(40px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Streamer Card - Compact */
+    .streamer-card {
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 16px;
+      padding: 20px;
+      border: 2px solid rgba(255, 140, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .avatar-container { position: relative; flex-shrink: 0; }
+    .avatar {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: 3px solid #FF8C00;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.6); }
+      50% { box-shadow: 0 0 15px 8px rgba(255, 140, 0, 0); }
+    }
+    .live-badge {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      background: #ff4444;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 700;
+      animation: livePulse 1s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .streamer-info { flex: 1; }
+    .streamer-info h2 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #FFD700, #FF8C00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .streamer-game {
+      font-size: 12px;
+      color: #FF8C00;
+      font-weight: 500;
+    }
+
+    /* Cycling Supporters Card */
+    .supporters-card {
+      flex: 1;
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .supporters-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .supporters-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #FFD700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tab-indicators {
+      display: flex;
+      gap: 6px;
+    }
+    .tab-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 140, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+    .tab-dot.active {
+      background: #FFD700;
+      width: 20px;
+      border-radius: 4px;
+    }
+
+    .supporters-content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    .supporters-panel {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all 0.4s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .supporters-panel.active {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .supporters-panel.exit {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+
+    .supporter-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+    .supporter-item:hover {
+      transform: translateX(5px);
+    }
+    .supporter-rank {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .supporter-rank.gold { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
+    .supporter-rank.silver { background: linear-gradient(135deg, #C0C0C0, #A8A8A8); color: #000; }
+    .supporter-rank.bronze { background: linear-gradient(135deg, #CD7F32, #B87333); color: #000; }
+    .supporter-rank.normal { background: rgba(255, 140, 0, 0.3); color: #FFD700; }
+
+    .supporter-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .supporter-icon.sub { background: linear-gradient(135deg, #FF8C00, #FFD700); }
+    .supporter-icon.follow { background: linear-gradient(135deg, #4a4a4a, #666); }
+    .supporter-icon.gift { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+
+    .supporter-info { flex: 1; min-width: 0; }
+    .supporter-name {
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .supporter-detail {
+      font-size: 11px;
+      color: #888;
+    }
+    .supporter-badge {
+      background: linear-gradient(135deg, #FF8C00, #FFD700);
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    /* ===== BOTTOM TICKER ===== */
+    .ticker-section {
+      position: absolute;
+      bottom: 20px;
+      left: 60px;
+      width: 1024px;
+      height: 44px;
+      background: rgba(255, 140, 0, 0.1);
+      border-radius: 22px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      border: 1px solid rgba(255, 140, 0, 0.25);
+    }
+    .ticker-content {
+      flex: 1;
+      overflow: hidden;
+      padding: 0 24px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .ticker-message {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      text-align: center;
+      animation: tickerFade 6s ease-in-out infinite;
+    }
+    @keyframes tickerFade {
+      0% { opacity: 0; transform: translateY(10px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-10px); }
+    }
+    .ticker-message .highlight { color: #FFD700; font-weight: 700; }
+    .ticker-message .emoji { margin-right: 8px; }
+
+    /* Glitch effect for special moments */
+    @keyframes glitch {
+      0%, 90%, 100% { transform: translate(0); }
+      92% { transform: translate(-2px, 1px); }
+      94% { transform: translate(2px, -1px); }
+      96% { transform: translate(-1px, -1px); }
+      98% { transform: translate(1px, 1px); }
+    }
+
+    /* ===== NEW FEATURES ===== */
+
+    /* Animated Win Rate Bar */
+    .winrate-bar-container {
+      width: 100%;
+      height: 6px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .winrate-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 1s ease-out;
+      background: linear-gradient(90deg, #FF8C00, #FFD700);
+    }
+    .winrate-bar.high { background: linear-gradient(90deg, #166534, #22c55e); }
+    .winrate-bar.mid { background: linear-gradient(90deg, #92400e, #f59e0b); }
+    .winrate-bar.low { background: linear-gradient(90deg, #7f1d1d, #ef4444); }
+
+    /* Match History Feed - Card Style */
+    .match-history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .match-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 6px;
+      border-left: 3px solid;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .match-card:hover {
+      transform: translateX(3px);
+    }
+    .match-card.win {
+      border-left-color: #22c55e;
+    }
+    .match-card.loss {
+      border-left-color: #ef4444;
+    }
+    .match-killer-img {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      object-fit: cover;
+      background: rgba(0,0,0,0.5);
+    }
+    .match-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .match-killer-name {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #fff;
+    }
+    .match-kills {
+      font-size: 9px;
+      color: #888;
+    }
+    .match-result-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .match-result-badge.win {
+      background: linear-gradient(135deg, #166534, #22c55e);
+      color: #fff;
+    }
+    .match-result-badge.loss {
+      background: linear-gradient(135deg, #7f1d1d, #ef4444);
+      color: #fff;
+    }
+
+    /* Blood Splatter Effect */
+    .blood-splatter {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9998;
+      opacity: 0;
+    }
+    .blood-splatter.active {
+      animation: bloodSplash 1.5s ease-out forwards;
+    }
+    @keyframes bloodSplash {
+      0% { opacity: 0; }
+      10% { opacity: 0.6; }
+      100% { opacity: 0; }
+    }
+    .blood-drop {
+      position: absolute;
+      background: radial-gradient(circle, #FF8C00 0%, transparent 70%);
+      border-radius: 50%;
+      animation: drip 1.5s ease-out forwards;
+    }
+    @keyframes drip {
+      0% { transform: scale(0) translateY(0); opacity: 1; }
+      50% { transform: scale(1) translateY(20px); opacity: 0.8; }
+      100% { transform: scale(1.5) translateY(50px); opacity: 0; }
+    }
+
+    /* Hook Animation */
+    .hook-animation {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9997;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+    }
+    .hook-animation.active {
+      animation: hookAppear 3s ease-out forwards;
+    }
+    @keyframes hookAppear {
+      0% { opacity: 0; transform: scale(0.5); }
+      20% { opacity: 1; transform: scale(1.1); }
+      30% { transform: scale(1); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: scale(0.8); }
+    }
+    .hook-content {
+      text-align: center;
+      text-shadow: 0 0 30px #FF8C00, 0 0 60px #FF8C00;
+    }
+    .hook-icon {
+      font-size: 80px;
+      animation: hookSwing 0.5s ease-in-out infinite alternate;
+    }
+    @keyframes hookSwing {
+      0% { transform: rotate(-5deg); }
+      100% { transform: rotate(5deg); }
+    }
+    .hook-text {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFD700;
+      margin-top: 10px;
+      text-transform: uppercase;
+    }
+    .hook-name {
+      font-size: 36px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+
+    /* Survivor Stats Section */
+    .survivor-stats {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 140, 0, 0.3);
+    }
+    .survivor-stats-header {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .survivor-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .survivor-stat {
+      background: rgba(0,0,0,0.4);
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid rgba(100, 149, 237, 0.2);
+    }
+    .survivor-stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #6495ED;
+    }
+    .survivor-stat-label {
+      font-size: 8px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    /* Live Game Indicator */
+    .live-game-indicator {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: linear-gradient(135deg, #FF8C00, #FFD700);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #000;
+      box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+      animation: liveGlow 2s ease-in-out infinite;
+    }
+    @keyframes liveGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(255, 140, 0, 0.5); }
+      50% { box-shadow: 0 0 20px rgba(255, 140, 0, 0.8); }
+    }
+    .live-game-indicator .live-dot {
+      width: 6px;
+      height: 6px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: liveBlink 1s ease-in-out infinite;
+    }
+    @keyframes liveBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .current-killer-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255, 140, 0, 0.15);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+    }
+    .current-killer-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 2px solid #FFD700;
+    }
+    .current-killer-info {
+      flex: 1;
+    }
+    .current-killer-label {
+      font-size: 9px;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .current-killer-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFD700;
+    }
+  </style>
+</head>
+<body>
+  <div class="scale-wrapper" id="scale-wrapper">
+  <div class="overlay-container">
+
+
+    <!-- Blood Splatter Overlay -->
+    <div class="blood-splatter" id="blood-splatter"></div>
+
+    <!-- Hook Animation Overlay -->
+    <div class="hook-animation" id="hook-animation">
+      <div class="hook-content">
+        <div class="hook-icon">🪝</div>
+        <div class="hook-text">Hooked!</div>
+        <div class="hook-name" id="hook-name"></div>
+      </div>
+    </div>
+
+    <!-- LEFT SIDE -->
+    <div class="game-area"></div>
+
+    <!-- DBD Stats - Between game and right column -->
+    <div class="dbd-stats-section" id="dbd-stats-section">
+      <div class="dbd-stats-card" style="position: relative;">
+        <!-- Live Game Indicator -->
+        <div class="live-game-indicator" id="live-game-indicator" style="display: none;">
+          <div class="live-dot"></div>
+          <span>IN TRIAL</span>
+        </div>
+
+        <div class="dbd-stats-header">🔪 DBD Stats</div>
+
+        <!-- Current Killer Display -->
+        <div class="current-killer-display" id="current-killer-display" style="display: none;">
+          <img class="current-killer-img" id="current-killer-img" src="" alt="">
+          <div class="current-killer-info">
+            <div class="current-killer-label">Now Playing</div>
+            <div class="current-killer-name" id="current-killer-name">--</div>
+          </div>
+        </div>
+
+        <!-- Current Streaks -->
+        <div class="streak-display">
+          <div class="streak-item">
+            <div class="streak-label">Current Streak</div>
+            <img class="streak-killer-img" id="current-streak-img" src="" alt="">
+            <div class="streak-killer-name" id="current-streak-killer">--</div>
+            <div class="streak-value" id="killer-streak">0</div>
+          </div>
+          <div class="streak-item">
+            <div class="streak-label">Best Streak</div>
+            <img class="streak-killer-img" id="best-streak-img" src="" alt="">
+            <div class="streak-killer-name" id="best-streak-killer">--</div>
+            <div class="streak-value" id="best-streak">0</div>
+          </div>
+        </div>
+
+        <!-- Per-Killer Stats (Auto-cycling) -->
+        <div class="killer-stats-section" id="killer-stats-section">
+          <div class="killer-stats-header">
+            <span id="stats-section-title">Per-Killer Stats</span>
+            <div class="page-dots" id="stats-section-dots">
+              <div class="page-dot active" title="Killer Stats"></div>
+              <div class="page-dot" title="Survivor Stats"></div>
+              <div class="page-dot" title="Match History"></div>
+            </div>
+          </div>
+          <!-- Panel 1: Killer Stats -->
+          <div class="stats-panel active" id="panel-killer-stats">
+            <div class="killer-stats-page" id="killer-stats-page">
+              <div class="killer-stat-row">
+                <span class="killer-name">Loading...</span>
+              </div>
+            </div>
+            <div class="page-dots" id="killer-page-dots" style="justify-content: center; margin-top: 8px;"></div>
+          </div>
+          <!-- Panel 2: Survivor Stats -->
+          <div class="stats-panel" id="panel-survivor-stats">
+            <div class="survivor-stats-grid">
+              <div class="survivor-stat">
+                <div class="survivor-stat-value" id="survivor-escape-rate">--%</div>
+                <div class="survivor-stat-label">Escape Rate</div>
+                <div class="winrate-bar-container">
+                  <div class="winrate-bar" id="survivor-escape-bar" style="width: 0%; background: linear-gradient(90deg, #1e3a5f, #6495ED);"></div>
+                </div>
+              </div>
+              <div class="survivor-stat">
+                <div class="survivor-stat-value" id="survivor-games">0</div>
+                <div class="survivor-stat-label">Games</div>
+              </div>
+              <div class="survivor-stat">
+                <div class="survivor-stat-value" id="survivor-escapes">0</div>
+                <div class="survivor-stat-label">Escapes</div>
+              </div>
+              <div class="survivor-stat">
+                <div class="survivor-stat-value" id="survivor-deaths">0</div>
+                <div class="survivor-stat-label">Deaths</div>
+              </div>
+            </div>
+          </div>
+          <!-- Panel 3: Match History -->
+          <div class="stats-panel" id="panel-match-history">
+            <div class="match-history-header" style="margin-bottom: 10px;">
+              <span id="match-history-record">0W - 0L</span>
+            </div>
+            <div class="match-history-list" id="match-history-list">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goals - Bottom Right -->
+    <div class="goals-section">
+      <div class="goals-card">
+        <div class="goals-header">🎯 Community Goals</div>
+        <div class="goals-grid">
+          <div class="goal-item">
+            <div class="goal-info">
+              <span class="goal-label">Follower Goal</span>
+              <span class="goal-value"><span id="follower-current">0</span> / <span id="follower-goal">1500</span></span>
+            </div>
+            <div class="goal-bar">
+              <div class="goal-progress" id="follower-progress" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="goal-item">
+            <div class="goal-info">
+              <span class="goal-label">Subscriber Goal</span>
+              <span class="goal-value"><span id="sub-current">0</span> / <span id="sub-goal-val">10</span></span>
+            </div>
+            <div class="goal-bar">
+              <div class="goal-progress" id="sub-progress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="right-column">
+      <div class="streamer-card">
+        <div class="avatar-container">
+          <img class="avatar" id="avatar" src="" alt="">
+          <div class="live-badge">LIVE</div>
+        </div>
+        <div class="streamer-info">
+          <h2 id="streamer-name">Loading...</h2>
+          <div class="streamer-game" id="current-game">Dead by Daylight</div>
+        </div>
+      </div>
+
+      <div class="supporters-card">
+        <div class="supporters-header">
+          <div class="supporters-title" id="supporters-title">🪝 Recent Subscribers</div>
+          <div class="tab-indicators" id="tab-indicators">
+            <div class="tab-dot active" data-tab="0"></div>
+            <div class="tab-dot" data-tab="1"></div>
+            <div class="tab-dot" data-tab="2"></div>
+            <div class="tab-dot" data-tab="3" id="activity-tab-dot" style="display: none;"></div>
+          </div>
+        </div>
+        <div class="supporters-content">
+          <!-- Panel 1: Recent Subscribers -->
+          <div class="supporters-panel active" id="panel-subs"></div>
+          <!-- Panel 2: Recent Followers -->
+          <div class="supporters-panel" id="panel-follows"></div>
+          <!-- Panel 3: Top Gifters -->
+          <div class="supporters-panel" id="panel-gifters"></div>
+          <!-- Panel 4: Live Activity (only shows when events exist) -->
+          <div class="supporters-panel" id="panel-activity"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM TICKER -->
+    <div class="ticker-section">
+      <div class="ticker-content">
+        <div class="ticker-message" id="ticker-message">Loading...</div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="scale-indicator" id="scale-indicator">100%</div>
+
+  <script>
+    // ========== CONFIGURATION ==========
+    const CONFIG = {
+      // DBD Tracker API
+      dbdTrackerBase: 'https://dbd.soupymediagroup.com',
+      dbdTrackerKey: '3bb329fbd85736bafe7a271e65926a1e43c384880db9b56f',
+
+      // Stream Companion API
+      apiBase: 'https://stream.soupymediagroup.com',
+      wsUrl: 'wss://stream.soupymediagroup.com/ws',
+
+      // Goals
+      goals: { followers: 1500, subs: 10 },
+
+      // Timing
+      cycleInterval: 8000,      // Tab cycle interval
+      killerPageInterval: 5000, // Killer stats page cycle
+      killersPerPage: 8         // Killers shown per page
+    };
+
+    const DESIGN_WIDTH = 1920;
+    const DESIGN_HEIGHT = 1080;
+
+    // ========== STATE ==========
+    let ws = null;
+    let currentTab = 0;
+    let recentFollowers = [];
+    let recentSubs = [];
+    let topGifters = [];
+    let recentEvents = [];
+    let tickerMessages = [];
+    let currentTickerIndex = 0;
+    let tickerInterval = null;
+
+    // DBD Tracker State
+    let dbdStats = null;
+    let perKillerStats = [];
+    let currentKillerPage = 0;
+    let killerPageInterval = null;
+    let currentStreakKiller = null;
+    let bestStreakKiller = null;
+
+    // Killer name to image URL - filenames match API names (e.g., "The Trapper.png")
+    function getKillerImageUrl(killerName) {
+      if (!killerName) return '';
+      return `${CONFIG.apiBase}/media/killers/${encodeURIComponent(killerName)}.png`;
+    }
+
+    const tabConfig = [
+      { id: 'subs', title: '🪝 Recent Subscribers', icon: 'sub' },
+      { id: 'follows', title: '💀 Recent Followers', icon: 'follow' },
+      { id: 'gifters', title: '🩸 Top Gifters', icon: 'gift' },
+      { id: 'activity', title: '⚡ Live Activity', icon: 'activity', conditional: true }
+    ];
+
+    // ========== SCALING ==========
+    function updateScale() {
+      const wrapper = document.getElementById('scale-wrapper');
+      const indicator = document.getElementById('scale-indicator');
+      const isOBS = window.obsstudio || (window.innerWidth === DESIGN_WIDTH && window.innerHeight === DESIGN_HEIGHT);
+
+      if (isOBS) {
+        wrapper.style.transform = 'scale(1)';
+        wrapper.style.left = '0';
+        wrapper.style.top = '0';
+        indicator.classList.remove('visible');
+        return;
+      }
+
+      const scaleX = window.innerWidth / DESIGN_WIDTH;
+      const scaleY = window.innerHeight / DESIGN_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
+
+      wrapper.style.transform = `scale(${scale})`;
+      indicator.textContent = `${Math.round(scale * 100)}%`;
+      indicator.classList.add('visible');
+
+      const offsetX = (window.innerWidth - DESIGN_WIDTH * scale) / 2;
+      const offsetY = (window.innerHeight - DESIGN_HEIGHT * scale) / 2;
+      wrapper.style.left = offsetX + 'px';
+      wrapper.style.top = offsetY + 'px';
+    }
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
+
+    // ========== WEBSOCKET ==========
+    function connectWebSocket() {
+      ws = new WebSocket(CONFIG.wsUrl);
+      ws.onopen = () => console.log('[WS] Connected');
+      ws.onclose = () => setTimeout(connectWebSocket, 3000);
+      ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+    }
+
+    function handleMessage(data) {
+      if (data.type === 'twitch-event') addEvent(data.data);
+      if (data.type === 'top-gifters-update') {
+        topGifters = data.data.map(g => ({ name: g.name, total: g.totalGifts }));
+        renderPanels();
+      }
+      if (data.type === 'followers-update') {
+        recentFollowers = data.data.map(f => ({ name: f.name, time: new Date(f.timestamp) }));
+        renderPanels();
+        updateTicker();
+      }
+      if (data.type === 'subs-update') {
+        recentSubs = data.data.map(s => ({ name: s.name, tier: s.tier, time: new Date(s.timestamp) }));
+        renderPanels();
+      }
+    }
+
+    // ========== VISUAL EFFECTS ==========
+    function triggerBloodSplatter() {
+      const splatter = document.getElementById('blood-splatter');
+
+      // Create random blood drops
+      splatter.innerHTML = '';
+      for (let i = 0; i < 8; i++) {
+        const drop = document.createElement('div');
+        drop.className = 'blood-drop';
+        drop.style.left = Math.random() * 100 + '%';
+        drop.style.top = Math.random() * 50 + '%';
+        drop.style.width = (30 + Math.random() * 50) + 'px';
+        drop.style.height = drop.style.width;
+        drop.style.animationDelay = (Math.random() * 0.3) + 's';
+        splatter.appendChild(drop);
+      }
+
+      splatter.classList.remove('active');
+      void splatter.offsetWidth; // Force reflow
+      splatter.classList.add('active');
+
+      setTimeout(() => {
+        splatter.classList.remove('active');
+        splatter.innerHTML = '';
+      }, 1500);
+    }
+
+    function triggerHookAnimation(name) {
+      const hookAnim = document.getElementById('hook-animation');
+      const hookName = document.getElementById('hook-name');
+
+      hookName.textContent = name;
+      hookAnim.classList.remove('active');
+      void hookAnim.offsetWidth; // Force reflow
+      hookAnim.classList.add('active');
+
+      // Also trigger blood splatter
+      triggerBloodSplatter();
+
+      setTimeout(() => {
+        hookAnim.classList.remove('active');
+      }, 3000);
+    }
+
+    function setCurrentKiller(killerName) {
+      const display = document.getElementById('current-killer-display');
+      const indicator = document.getElementById('live-game-indicator');
+      const img = document.getElementById('current-killer-img');
+      const name = document.getElementById('current-killer-name');
+
+      if (killerName) {
+        display.style.display = 'flex';
+        indicator.style.display = 'flex';
+        img.src = getKillerImageUrl(killerName);
+        name.textContent = killerName.replace('The ', '');
+      } else {
+        display.style.display = 'none';
+        indicator.style.display = 'none';
+      }
+    }
+
+    // ========== EVENTS ==========
+    function addEvent(event) {
+      const icons = { follow: '💀', subscription: '🪝', raid: '⚡', cheer: '🩸', gift: '🎁' };
+      let text = '';
+      let userName = '';
+
+      switch(event.type) {
+        case 'follow':
+          userName = event.data.displayName;
+          text = `<strong>${userName}</strong> joined the fog!`;
+          recentFollowers.unshift({ name: userName, time: new Date() });
+          recentFollowers = recentFollowers.slice(0, 10);
+          updateTicker();
+          // Trigger blood splatter for follows
+          triggerBloodSplatter();
+          break;
+        case 'subscription':
+          userName = event.data.displayName;
+          text = `<strong>${userName}</strong> was sacrificed!`;
+          recentSubs.unshift({ name: userName, tier: event.data.tier || '1000', time: new Date() });
+          recentSubs = recentSubs.slice(0, 10);
+          // Trigger hook animation for subs
+          triggerHookAnimation(userName);
+          break;
+        case 'gift':
+          userName = event.data.gifterDisplayName || event.data.displayName;
+          const existing = topGifters.find(g => g.name === userName);
+          if (existing) existing.total += event.data.total || 1;
+          else topGifters.push({ name: userName, total: event.data.total || 1 });
+          topGifters.sort((a, b) => b.total - a.total);
+          topGifters = topGifters.slice(0, 10);
+          text = `<strong>${userName}</strong> gifted ${event.data.total || 1} hooks!`;
+          // Trigger hook animation for gifts
+          triggerHookAnimation(userName);
+          break;
+        case 'raid':
+          userName = event.data.user;
+          text = `<strong>${userName}</strong> raided with ${event.data.viewers} survivors!`;
+          // Trigger blood splatter for raids
+          triggerBloodSplatter();
+          break;
+        case 'cheer':
+          userName = event.data.user;
+          text = `<strong>${userName}</strong> offered ${event.data.bits} bloodpoints!`;
+          // Trigger blood splatter for cheers
+          triggerBloodSplatter();
+          break;
+        default: return;
+      }
+
+      recentEvents.unshift({ type: event.type, text, icon: icons[event.type] || '📢', time: new Date() });
+      recentEvents = recentEvents.slice(0, 10);
+      updateActivityTabVisibility();
+      renderPanels();
+
+      // Increase heartbeat intensity temporarily
+      const container = document.querySelector('.overlay-container');
+      container.classList.remove('heartbeat-slow', 'heartbeat-medium');
+      container.classList.add('heartbeat-active');
+      setTimeout(() => updateHeartbeatIntensity(), 5000);
+    }
+
+    // ========== RENDER PANELS ==========
+    function renderPanels() {
+      const MAX_ITEMS = 10;
+
+      // Subscribers
+      const subsPanel = document.getElementById('panel-subs');
+      if (recentSubs.length > 0) {
+        subsPanel.innerHTML = recentSubs.slice(0, MAX_ITEMS).map(s => {
+          const tierNum = s.tier === '3000' ? '3' : s.tier === '2000' ? '2' : '1';
+          const months = s.cumulativeMonths || s.months || 0;
+          const monthsText = months > 0 ? `${months} mo` : '';
+          return `
+            <div class="supporter-item">
+              <div class="supporter-icon sub">🪝</div>
+              <div class="supporter-info">
+                <div class="supporter-name">${s.name}</div>
+                <div class="supporter-detail">Tier ${tierNum}${monthsText ? ' • ' + monthsText : ''}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        subsPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon sub">🪝</div><div class="supporter-info"><div class="supporter-name">No recent hooks</div></div></div>';
+      }
+
+      // Followers
+      const followsPanel = document.getElementById('panel-follows');
+      if (recentFollowers.length > 0) {
+        followsPanel.innerHTML = recentFollowers.slice(0, MAX_ITEMS).map(f => `
+          <div class="supporter-item">
+            <div class="supporter-icon follow">💀</div>
+            <div class="supporter-info">
+              <div class="supporter-name">${f.name}</div>
+              <div class="supporter-detail">Entered the fog</div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        followsPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon follow">💀</div><div class="supporter-info"><div class="supporter-name">No recent survivors</div></div></div>';
+      }
+
+      // Top Gifters
+      const giftersPanel = document.getElementById('panel-gifters');
+      if (topGifters.length > 0) {
+        giftersPanel.innerHTML = topGifters.slice(0, MAX_ITEMS).map((g, i) => {
+          const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+          return `
+            <div class="supporter-item">
+              <div class="supporter-rank ${rankClass}">${i + 1}</div>
+              <div class="supporter-info">
+                <div class="supporter-name">${g.name}</div>
+                <div class="supporter-detail">Blood Offering</div>
+              </div>
+              <div class="supporter-badge">${g.total} 🩸</div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        giftersPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon gift">🎁</div><div class="supporter-info"><div class="supporter-name">No offerings yet</div></div></div>';
+      }
+
+      // Live Activity
+      const activityPanel = document.getElementById('panel-activity');
+      if (recentEvents.length > 0) {
+        activityPanel.innerHTML = recentEvents.slice(0, MAX_ITEMS).map(e => {
+          const timeAgo = getTimeAgo(e.time);
+          return `
+            <div class="event-item">
+              <div class="event-icon ${e.type}">${e.icon}</div>
+              <div class="event-text">${e.text}</div>
+              <div class="event-time">${timeAgo}</div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        activityPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon follow">⚡</div><div class="supporter-info"><div class="supporter-name">No recent activity</div></div></div>';
+      }
+    }
+
+    function getTimeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      if (seconds < 60) return 'just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h ago`;
+    }
+
+    function updateActivityTabVisibility() {
+      const activityDot = document.getElementById('activity-tab-dot');
+      activityDot.style.display = recentEvents.length > 0 ? 'block' : 'none';
+    }
+
+    function getActiveTabs() {
+      const activeTabs = [0, 1, 2];
+      if (recentEvents.length > 0) activeTabs.push(3);
+      return activeTabs;
+    }
+
+    function cycleTab() {
+      const panels = document.querySelectorAll('.supporters-panel');
+      const dots = document.querySelectorAll('.tab-dot');
+      const title = document.getElementById('supporters-title');
+      const activeTabs = getActiveTabs();
+
+      panels[currentTab].classList.remove('active');
+      panels[currentTab].classList.add('exit');
+      dots[currentTab].classList.remove('active');
+
+      const currentIndex = activeTabs.indexOf(currentTab);
+      const nextIndex = (currentIndex + 1) % activeTabs.length;
+      currentTab = activeTabs[nextIndex];
+
+      title.textContent = tabConfig[currentTab].title;
+
+      setTimeout(() => {
+        panels.forEach(p => p.classList.remove('exit'));
+        panels[currentTab].classList.add('active');
+        dots[currentTab].classList.add('active');
+      }, 100);
+    }
+
+    // ========== DBD TRACKER API ==========
+    // Match history state
+    let recentMatches = [];
+    let activityLevel = 0; // 0 = slow, 1 = medium, 2 = active
+
+    async function loadDbdTrackerStats() {
+      if (!CONFIG.dbdTrackerKey) {
+        console.log('[DBD] No API key configured');
+        return;
+      }
+
+      try {
+        // Load main stats
+        const statsRes = await fetch(`${CONFIG.dbdTrackerBase}/api/v1/public/stats?key=${CONFIG.dbdTrackerKey}`);
+        const statsData = await statsRes.json();
+
+        if (statsData.ok) {
+          dbdStats = statsData;
+          updateDbdStatsDisplay();
+
+          // Store per-killer stats for cycling
+          if (statsData.perKiller && statsData.perKiller.length > 0) {
+            // Sort by current streak (highest first), then by win rate (highest first)
+            perKillerStats = statsData.perKiller.sort((a, b) => {
+              const streakDiff = (b.currentStreak || 0) - (a.currentStreak || 0);
+              if (streakDiff !== 0) return streakDiff;
+              return (b.winRate || 0) - (a.winRate || 0);
+            });
+            renderKillerStatsPage();
+            startKillerPageCycle();
+          }
+        }
+
+        // Load match history first (needed for current streak display)
+        await loadMatchHistory();
+
+        // Load streaks
+        const streaksRes = await fetch(`${CONFIG.dbdTrackerBase}/api/v1/public/streaks?key=${CONFIG.dbdTrackerKey}&active=1`);
+        const streaksData = await streaksRes.json();
+
+        if (streaksData.ok) {
+          updateStreaksDisplay(streaksData);
+        }
+
+      } catch (e) {
+        console.error('[DBD] Failed to load tracker stats:', e);
+      }
+    }
+
+    async function loadMatchHistory() {
+      try {
+        const res = await fetch(`${CONFIG.dbdTrackerBase}/api/v1/public/matches?key=${CONFIG.dbdTrackerKey}&limit=12`);
+        const data = await res.json();
+
+        if (data.ok && data.matches) {
+          recentMatches = data.matches;
+          renderMatchHistory();
+        }
+      } catch (e) {
+        console.error('[DBD] Failed to load match history:', e);
+      }
+    }
+
+    function renderMatchHistory() {
+      const container = document.getElementById('match-history-list');
+      const recordEl = document.getElementById('match-history-record');
+
+      if (!recentMatches || recentMatches.length === 0) {
+        container.innerHTML = '<span style="color: #666; font-size: 11px;">No recent matches</span>';
+        return;
+      }
+
+      let wins = 0, losses = 0;
+
+      container.innerHTML = recentMatches.slice(0, 8).map(m => {
+        const kills = m.kills || 0;
+        const isWin = m.isWin === true;
+        if (isWin) wins++; else losses++;
+        const killerImg = getKillerImageUrl(m.killerName);
+        const killerShort = (m.killerName || '').replace('The ', '');
+        return `
+          <div class="match-card ${isWin ? 'win' : 'loss'}">
+            <img class="match-killer-img" src="${killerImg}" alt="" onerror="this.src=''">
+            <div class="match-info">
+              <div class="match-killer-name">${killerShort}</div>
+              <div class="match-kills">${kills}K</div>
+            </div>
+            <div class="match-result-badge ${isWin ? 'win' : 'loss'}">${isWin ? 'W' : 'L'}</div>
+          </div>
+        `;
+      }).join('');
+
+      recordEl.textContent = `${wins}W - ${losses}L`;
+    }
+
+    function updateDbdStatsDisplay() {
+      if (!dbdStats || !dbdStats.overall) return;
+
+      const overall = dbdStats.overall;
+
+      // Survivor Stats
+      const escapeRate = Math.round((overall.escapeRate || 0) * 100);
+      document.getElementById('survivor-escape-rate').textContent = escapeRate + '%';
+      document.getElementById('survivor-escape-bar').style.width = escapeRate + '%';
+      document.getElementById('survivor-games').textContent = overall.survivorGames || 0;
+    }
+
+    function updateHeartbeatIntensity() {
+      // Heartbeat effect removed
+    }
+
+    function updateStreaksDisplay(streaksData) {
+      const killerStreaks = streaksData.streaks?.filter(s => s.type === 'killer') || [];
+
+      if (killerStreaks.length === 0) return;
+
+      // Get last played killer from recent matches
+      const lastKiller = recentMatches.length > 0 ? recentMatches[0].killerName : null;
+
+      // Find streak for last played killer
+      let currentKillerStreak = lastKiller
+        ? killerStreaks.find(s => s.label === lastKiller)
+        : killerStreaks[0];
+
+      // If no streak found for last killer, use first available
+      if (!currentKillerStreak) currentKillerStreak = killerStreaks[0];
+
+      // Current streak (for last played killer)
+      const currentKillerName = currentKillerStreak.label || '';
+      const currentEl = document.getElementById('killer-streak');
+      currentEl.textContent = currentKillerStreak.count || 0;
+      currentEl.classList.toggle('active', currentKillerStreak.count > 0);
+
+      document.getElementById('current-streak-killer').textContent = currentKillerName.replace('The ', '') || '--';
+      const currentImg = document.getElementById('current-streak-img');
+      if (currentKillerName) {
+        currentImg.src = getKillerImageUrl(currentKillerName);
+        currentImg.style.display = 'block';
+      } else {
+        currentImg.style.display = 'none';
+      }
+
+      // Find best overall streak
+      const bestStreak = killerStreaks.reduce((best, s) =>
+        (s.best > (best?.best || 0)) ? s : best, null);
+
+      if (bestStreak) {
+        const bestKillerName = bestStreak.label || '';
+        document.getElementById('best-streak').textContent = bestStreak.best || 0;
+        document.getElementById('best-streak-killer').textContent = bestKillerName.replace('The ', '') || '--';
+        const bestImg = document.getElementById('best-streak-img');
+        if (bestKillerName) {
+          bestImg.src = getKillerImageUrl(bestKillerName);
+          bestImg.style.display = 'block';
+        } else {
+          bestImg.style.display = 'none';
+        }
+      }
+    }
+
+    // ========== KILLER STATS CYCLING ==========
+    function renderKillerStatsPage() {
+      if (perKillerStats.length === 0) return;
+
+      const container = document.getElementById('killer-stats-page');
+      const dotsContainer = document.getElementById('killer-page-dots');
+      const totalPages = Math.ceil(perKillerStats.length / CONFIG.killersPerPage);
+
+      // Render page dots
+      dotsContainer.innerHTML = Array(totalPages).fill(0).map((_, i) =>
+        `<div class="page-dot ${i === currentKillerPage ? 'active' : ''}"></div>`
+      ).join('');
+
+      // Get killers for current page
+      const start = currentKillerPage * CONFIG.killersPerPage;
+      const pageKillers = perKillerStats.slice(start, start + CONFIG.killersPerPage);
+
+      container.innerHTML = pageKillers.map(k => {
+        const winRate = Math.round((k.winRate || 0) * 100);
+        const winRateClass = winRate >= 60 ? '' : winRate >= 40 ? 'mid' : 'low';
+        const imgUrl = getKillerImageUrl(k.killerName);
+        return `
+          <div class="killer-stat-row">
+            <img class="killer-portrait" src="${imgUrl}" alt="${k.killerName}" onerror="this.style.display='none'">
+            <span class="killer-name">${k.killerName}</span>
+            <span class="killer-winrate ${winRateClass}">${winRate}%</span>
+            ${k.currentStreak > 0 ? `<span class="killer-streak">🔥${k.currentStreak}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function cycleKillerPage() {
+      if (perKillerStats.length === 0) return;
+      const totalPages = Math.ceil(perKillerStats.length / CONFIG.killersPerPage);
+      currentKillerPage = (currentKillerPage + 1) % totalPages;
+      renderKillerStatsPage();
+    }
+
+    function startKillerPageCycle() {
+      if (killerPageInterval) clearInterval(killerPageInterval);
+      if (perKillerStats.length > CONFIG.killersPerPage) {
+        killerPageInterval = setInterval(cycleKillerPage, CONFIG.killerPageInterval);
+      }
+    }
+
+    // ========== STATS SECTION ROTATION ==========
+    let currentStatsSection = 0;
+    let statsSectionInterval = null;
+    const statsSectionTitles = ['Per-Killer Stats', '🏃 Survivor Stats', '📊 Match History'];
+
+    function cycleStatsSection() {
+      const panels = document.querySelectorAll('.stats-panel');
+      const dots = document.querySelectorAll('#stats-section-dots .page-dot');
+      const title = document.getElementById('stats-section-title');
+
+      panels[currentStatsSection].classList.remove('active');
+      dots[currentStatsSection].classList.remove('active');
+
+      currentStatsSection = (currentStatsSection + 1) % 3;
+
+      panels[currentStatsSection].classList.add('active');
+      dots[currentStatsSection].classList.add('active');
+      title.textContent = statsSectionTitles[currentStatsSection];
+    }
+
+    function startStatsSectionCycle() {
+      if (statsSectionInterval) clearInterval(statsSectionInterval);
+      statsSectionInterval = setInterval(cycleStatsSection, 8000); // 8 seconds per section
+    }
+
+    // ========== STREAM COMPANION API ==========
+    async function loadChannelInfo() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/twitch/channel-info`);
+        const data = await res.json();
+
+        document.getElementById('streamer-name').textContent = data.displayName;
+        document.getElementById('current-game').textContent = data.gameName || 'Dead by Daylight';
+        document.getElementById('avatar').src = data.profilePictureUrl;
+        document.getElementById('follower-current').textContent = data.followerCount.toLocaleString();
+
+        const pct = Math.min((data.followerCount / CONFIG.goals.followers) * 100, 100);
+        document.getElementById('follower-progress').style.width = pct + '%';
+      } catch (e) {
+        console.error('Failed to load channel info:', e);
+      }
+    }
+
+    async function loadSubInfo() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/twitch/subscribers`);
+        const data = await res.json();
+        document.getElementById('sub-current').textContent = data.total;
+        const pct = Math.min((data.total / CONFIG.goals.subs) * 100, 100);
+        document.getElementById('sub-progress').style.width = pct + '%';
+      } catch (e) {
+        console.error('Failed to load sub info:', e);
+      }
+    }
+
+    async function loadFollowers() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/twitch/recent-followers?limit=20`);
+        const data = await res.json();
+        if (data.followers && data.followers.length > 0) {
+          recentFollowers = data.followers.map(f => ({ name: f.name, time: new Date(f.timestamp) }));
+          renderPanels();
+          updateTicker();
+        }
+      } catch (e) {
+        console.error('Failed to load followers:', e);
+      }
+    }
+
+    async function loadRecentSubs() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/twitch/recent-subs?limit=10`);
+        const data = await res.json();
+        if (data.subs && data.subs.length > 0) {
+          recentSubs = data.subs.map(s => ({
+            name: s.name, tier: s.tier,
+            months: s.months || 0, cumulativeMonths: s.cumulativeMonths || 0,
+            time: new Date(s.timestamp)
+          }));
+          renderPanels();
+        }
+      } catch (e) {
+        console.error('Failed to load recent subs:', e);
+      }
+    }
+
+    async function loadTopGifters() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/twitch/top-gifters`);
+        const data = await res.json();
+        if (data.leaderboard && data.leaderboard.length > 0) {
+          topGifters = data.leaderboard.map(g => ({ name: g.name, total: g.totalGifts }));
+          renderPanels();
+        }
+      } catch (e) {
+        console.error('Failed to load top gifters:', e);
+      }
+    }
+
+    async function loadTickerMessages() {
+      try {
+        const res = await fetch(`${CONFIG.apiBase}/api/ticker/messages`);
+        const data = await res.json();
+        tickerMessages = [];
+
+        if (data.messages && data.messages.length > 0) {
+          data.messages.filter(m => m.enabled).forEach(m => {
+            tickerMessages.push({ type: 'custom', text: m.text });
+          });
+        }
+
+        if (data.challengeActive && data.challengeRules && data.challengeRules.length > 0) {
+          data.challengeRules.forEach(rule => {
+            tickerMessages.push({ type: 'challenge', text: rule });
+          });
+        }
+
+        if (tickerMessages.length === 0) {
+          tickerMessages.push({ type: 'default', text: 'Welcome to the fog, survivor...' });
+        }
+
+        updateTickerDisplay();
+      } catch (e) {
+        console.error('Failed to load ticker messages:', e);
+        tickerMessages = [{ type: 'default', text: 'Welcome to the fog, survivor...' }];
+        updateTickerDisplay();
+      }
+    }
+
+    function updateTickerDisplay() {
+      const tickerMessage = document.getElementById('ticker-message');
+
+      if (tickerMessages.length === 0) return;
+
+      const msg = tickerMessages[currentTickerIndex];
+
+      tickerMessage.style.animation = 'none';
+      tickerMessage.offsetHeight;
+      tickerMessage.style.animation = 'tickerFade 6s ease-in-out';
+      tickerMessage.textContent = msg.text;
+    }
+
+    function cycleTickerMessage() {
+      currentTickerIndex = (currentTickerIndex + 1) % tickerMessages.length;
+      updateTickerDisplay();
+    }
+
+    function startTickerCycle() {
+      if (tickerInterval) clearInterval(tickerInterval);
+      tickerInterval = setInterval(cycleTickerMessage, 6000);
+    }
+
+    function updateTicker() {
+      loadTickerMessages();
+    }
+
+    // ========== INIT ==========
+    async function init() {
+      connectWebSocket();
+      await loadChannelInfo();
+      await loadSubInfo();
+      await loadFollowers();
+      await loadRecentSubs();
+      await loadTopGifters();
+      await loadDbdTrackerStats();
+      await loadTickerMessages();
+      renderPanels();
+      updateActivityTabVisibility();
+
+      setInterval(cycleTab, CONFIG.cycleInterval);
+      startTickerCycle();
+      startStatsSectionCycle();
+
+      // Refresh data periodically
+      setInterval(() => {
+        loadChannelInfo();
+        loadSubInfo();
+        loadFollowers();
+        loadRecentSubs();
+        loadTopGifters();
+        loadDbdTrackerStats();
+        loadTickerMessages();
+      }, 60000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

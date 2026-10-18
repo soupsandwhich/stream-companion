@@ -1,0 +1,4476 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Stream Companion</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+    .container { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 200px;
+      background: #16213e;
+      padding: 20px 0;
+      border-right: 1px solid #0f3460;
+    }
+    .sidebar h1 {
+      font-size: 18px;
+      padding: 0 20px 20px;
+      border-bottom: 1px solid #0f3460;
+      color: #e94560;
+    }
+    .nav-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: #0f3460; }
+    .nav-item.active {
+      background: #0f3460;
+      border-left-color: #e94560;
+    }
+    .main { flex: 1; padding: 30px; overflow-y: auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    .header h2 { font-size: 24px; }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4caf50;
+    }
+    .status-dot.disconnected { background: #f44336; }
+    .card {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      margin-bottom: 15px;
+      color: #e94560;
+    }
+    .alert-item {
+      padding: 12px;
+      background: #0f3460;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .alert-type {
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #e94560;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .alert-time { font-size: 12px; color: #888; }
+    .btn {
+      background: #e94560;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #d63050; }
+    .btn-secondary {
+      background: #0f3460;
+    }
+    .btn-secondary:hover { background: #1a4a7a; }
+    .input-group { margin-bottom: 15px; }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+      color: #aaa;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 10px;
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 14px;
+    }
+    .input-group input:focus, .input-group select:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    .overlay-url {
+      font-family: monospace;
+      background: #0f3460;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      color: #e94560;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .copy-btn:hover { text-decoration: underline; }
+
+    /* Trivia layout */
+
+    /* Small screens - single column, normal page scroll */
+    .trivia-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .trivia-left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .trivia-controls-row {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .trivia-controls-row .card {
+      margin: 0;
+    }
+
+    /* Medium screens - 3 columns, controls stacked vertically */
+    @media (min-width: 1200px) {
+      .trivia-layout {
+        display: grid;
+        grid-template-columns: 300px 250px 1fr;
+        gap: 20px;
+        height: calc(100vh - 120px);
+      }
+      .trivia-left-col {
+        overflow-y: auto;
+      }
+      .trivia-controls-row {
+        flex-direction: column;
+      }
+    }
+
+    /* Large screens - wider left column, controls side by side */
+    @media (min-width: 1600px) {
+      .trivia-layout {
+        grid-template-columns: minmax(500px, 1.2fr) 280px minmax(350px, 1.5fr);
+      }
+      .trivia-controls-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .trivia-leaderboard-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .trivia-leaderboard-card #trivia-leaderboard {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .trivia-chat-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .chat-buffer-scroll {
+      flex: 1;
+      overflow-y: auto;
+      background: #0a0a15;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 0;
+    }
+    .chat-buffer-scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+    .chat-buffer-scroll::-webkit-scrollbar-track {
+      background: #0a0a15;
+      border-radius: 4px;
+    }
+    .chat-buffer-scroll::-webkit-scrollbar-thumb {
+      background: #1a4a7a;
+      border-radius: 4px;
+    }
+    .chat-buffer-scroll::-webkit-scrollbar-thumb:hover {
+      background: #2a5a8a;
+    }
+
+    /* Games page layout */
+    .games-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 1000px) {
+      .games-layout {
+        grid-template-columns: 1fr 350px;
+        height: calc(100vh - 120px);
+      }
+    }
+    .games-leaderboard-card {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .games-leaderboard-card #games-leaderboard {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .games-settings-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+    .games-player-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      background: #0f3460;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border-left: 4px solid #333;
+    }
+    .games-player-row.rank-1 { border-left-color: gold; background: linear-gradient(90deg, rgba(255,215,0,0.15), #0f3460); }
+    .games-player-row.rank-2 { border-left-color: silver; }
+    .games-player-row.rank-3 { border-left-color: #cd7f32; }
+    .games-player-rank {
+      font-weight: bold;
+      color: #FF8C00;
+      width: 40px;
+      text-align: center;
+    }
+    .games-player-name {
+      flex: 1;
+      color: #fff;
+      font-weight: 500;
+    }
+    .games-player-stats {
+      display: flex;
+      gap: 15px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    .games-player-points {
+      font-weight: bold;
+      color: #FFD700;
+      font-size: 16px;
+      min-width: 50px;
+      text-align: right;
+    }
+    .games-player-delete {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      margin-left: 10px;
+    }
+    .games-player-delete:hover { color: #e94560; }
+    .games-history-item {
+      padding: 10px;
+      background: #0a0a15;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .games-history-item .date { color: #666; }
+    .games-history-item .winner { color: #FFD700; font-weight: bold; }
+
+    /* Movies page layout */
+    .movies-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 1200px) {
+      .movies-layout {
+        grid-template-columns: 1fr 350px;
+        height: calc(100vh - 120px);
+      }
+    }
+    .movies-main {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+    .movies-chat-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* DBD Challenge styles */
+    .dbd-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 1200px) {
+      .dbd-layout {
+        grid-template-columns: 1fr 350px;
+        height: calc(100vh - 120px);
+      }
+    }
+    .dbd-main {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+    .dbd-stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .dbd-stat-box {
+      background: #0f3460;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+    }
+    .dbd-stat-box .value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #FFD700;
+    }
+    .dbd-stat-box .label {
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 5px;
+    }
+    .dbd-stat-box.warning .value { color: #FF8C00; }
+    .dbd-stat-box.danger .value { color: #e94560; }
+    .dbd-stat-box.success .value { color: #4caf50; }
+    .dbd-tier-section {
+      margin-bottom: 15px;
+    }
+    .dbd-tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 15px;
+      border-radius: 8px 8px 0 0;
+      font-weight: bold;
+    }
+    .dbd-tier-header.free { background: linear-gradient(90deg, #2d5a3d, #1a3d2a); }
+    .dbd-tier-header.ash { background: linear-gradient(90deg, #5a4d3d, #3d342a); }
+    .dbd-tier-header.bronze { background: linear-gradient(90deg, #8b5a2b, #5d3a1a); }
+    .dbd-tier-header.silver { background: linear-gradient(90deg, #5a5a5a, #3a3a3a); }
+    .dbd-tier-header.gold { background: linear-gradient(90deg, #8b7500, #5d4f00); }
+    .dbd-tier-header.iri { background: linear-gradient(90deg, #6b1a5a, #4a1040); }
+    .dbd-tier-cost {
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .dbd-killer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+      padding: 10px;
+      background: #0a0a15;
+      border-radius: 0 0 8px 8px;
+    }
+    .dbd-killer-card {
+      background: #16213e;
+      border: 2px solid #333;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .dbd-killer-card:hover {
+      border-color: #FF8C00;
+      transform: translateY(-2px);
+    }
+    .dbd-killer-card.played {
+      opacity: 0.5;
+      border-color: #4caf50;
+      cursor: default;
+    }
+    .dbd-killer-card.selected {
+      border-color: #FFD700;
+      background: #2a3a5e;
+    }
+    .dbd-killer-card.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .dbd-killer-name {
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 5px;
+    }
+    .dbd-killer-stats {
+      font-size: 11px;
+      color: #888;
+    }
+    .dbd-killer-stats.success { color: #4caf50; }
+    .dbd-game-result {
+      padding: 10px;
+      background: #0a0a15;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      border-left: 3px solid #333;
+    }
+    .dbd-game-result.positive { border-left-color: #4caf50; }
+    .dbd-game-result.negative { border-left-color: #e94560; }
+    .dbd-preset-btn {
+      padding: 8px 16px;
+      font-size: 12px;
+    }
+    .dbd-preset-btn.active {
+      background: #FF8C00;
+      color: #fff;
+      border-color: #FF8C00;
+    }
+    .dbd-preset-btn.active:hover {
+      background: #e07b00;
+    }
+    .dbd-challenge-card {
+      background: #16213e;
+      border: 2px solid #333;
+      border-radius: 8px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dbd-challenge-card:hover {
+      border-color: #FF8C00;
+      transform: translateX(5px);
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <h1>Stream Companion</h1>
+      <div class="nav-item active" data-page="dashboard">Dashboard</div>
+      <div class="nav-item" data-page="actions">Actions</div>
+      <div class="nav-item" data-page="games">Game Stats</div>
+      <div class="nav-item" data-page="trivia">Trivia</div>
+      <div class="nav-item" data-page="movies">Movies</div>
+      <div class="nav-item" data-page="dbd">DBD Challenges</div>
+      <div class="nav-item" data-page="twitch">Twitch</div>
+      <div class="nav-item" data-page="overlays">Overlays</div>
+      <div class="nav-item" data-page="ticker">Ticker Messages</div>
+      <div class="nav-item" data-page="commands">Commands</div>
+      <div class="nav-item" data-page="sounds">Sounds & Alerts</div>
+      <div class="nav-item" data-page="settings">Settings</div>
+    </div>
+    <div class="main">
+      <!-- Dashboard -->
+      <div id="page-dashboard" class="page">
+        <div class="header">
+          <h2>Dashboard</h2>
+          <div class="status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Connected</span>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Quick Stats</h3>
+            <p>Alerts today: <span id="stat-alerts">0</span></p>
+            <p>Actions configured: <span id="stat-actions">0</span></p>
+            <p>Games tracked: <span id="stat-games">0</span></p>
+          </div>
+          <div class="card">
+            <h3>Server Status</h3>
+            <p>HTTP: <a href="http://localhost:8877" style="color:#e94560">localhost:8877</a></p>
+            <p>WebSocket: ws://localhost:8878</p>
+            <p style="margin-top:10px;">
+              Remote Sync: <span id="sync-status" style="color:#e94560;">Checking...</span>
+            </p>
+            <p style="font-size:12px;color:#666;margin-top:5px;">
+              <a href="https://stream.soupymediagroup.com" target="_blank" style="color:#888;">Dashboard</a>
+            </p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Recent Alerts</h3>
+          <div id="recent-alerts">
+            <div class="empty-state">No alerts yet</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div id="page-actions" class="page hidden">
+        <div class="header">
+          <h2>Actions</h2>
+          <button class="btn" onclick="showAddAction()">Add Action</button>
+        </div>
+        <div class="card">
+          <h3>Configured Actions</h3>
+          <div id="actions-list">
+            <div class="empty-state">No actions configured</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Games -->
+      <div id="page-games" class="page hidden">
+        <div class="header">
+          <h2>Game Stats</h2>
+          <div class="status">
+            <span id="games-period-info">Loading...</span>
+          </div>
+        </div>
+
+        <div class="games-layout">
+          <!-- Left: Cumulative Leaderboard -->
+          <div class="card games-leaderboard-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+              <h3 style="margin:0;">Cumulative Leaderboard</h3>
+              <span id="games-total-count" style="color:#888;font-size:14px;"></span>
+            </div>
+            <div id="games-leaderboard">
+              <div class="empty-state">No players yet</div>
+            </div>
+          </div>
+
+          <!-- Right: Settings & Actions -->
+          <div class="games-settings-col">
+            <div class="card">
+              <h3>Placement Points</h3>
+              <p style="color:#aaa;margin-bottom:15px;font-size:13px;">Points awarded for finishing positions:</p>
+              <div class="input-group">
+                <label>1st Place</label>
+                <input type="number" id="points-first" value="3" min="0" max="100">
+              </div>
+              <div class="input-group">
+                <label>2nd Place</label>
+                <input type="number" id="points-second" value="2" min="0" max="100">
+              </div>
+              <div class="input-group">
+                <label>3rd Place</label>
+                <input type="number" id="points-third" value="1" min="0" max="100">
+              </div>
+              <button class="btn" onclick="savePlacementPoints()" style="margin-top:15px;">Save Points</button>
+            </div>
+
+            <div class="card">
+              <h3>Period Management</h3>
+              <p style="color:#aaa;margin-bottom:15px;font-size:13px;">Reset when starting a new prize period:</p>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn" onclick="exportGameStats()">Export Stats (JSON)</button>
+                <button class="btn btn-secondary" onclick="resetPeriod(false)">Reset Period</button>
+                <button class="btn btn-secondary" onclick="resetPeriod(true)">Reset (Keep History)</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Recent Games</h3>
+              <div id="games-history" style="max-height:200px;overflow-y:auto;">
+                <div class="empty-state" style="padding:20px;">No games played</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trivia -->
+      <div id="page-trivia" class="page hidden">
+        <div class="header">
+          <h2>Trivia Game</h2>
+          <div class="status">
+            <span id="trivia-status">Inactive</span>
+          </div>
+        </div>
+
+        <!-- Three column layout -->
+        <div class="trivia-layout">
+          <!-- Left Column: Question + Controls -->
+          <div class="trivia-left-col">
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                <h3 style="margin:0;">Current Question</h3>
+                <div style="display:flex;gap:10px;">
+                  <button class="btn" onclick="nextQuestion()">Next Question</button>
+                  <button class="btn btn-secondary" onclick="revealAll()">Reveal All</button>
+                </div>
+              </div>
+              <div id="trivia-current">
+                <div class="empty-state">No active question</div>
+              </div>
+            </div>
+
+            <div class="trivia-controls-row">
+              <div class="card">
+                <h3>Game Controls</h3>
+                <div class="input-group">
+                  <label>Category</label>
+                  <select id="trivia-category">
+                    <option value="3 Answers">3 Answers (90 questions)</option>
+                    <option value="4 Answers" selected>4 Answers (700+ questions)</option>
+                    <option value="5 Answers">5 Answers (1000+ questions)</option>
+                  </select>
+                </div>
+                <div class="input-group">
+                  <label>Number of Questions</label>
+                  <select id="trivia-questions">
+                    <option value="3">3 Questions</option>
+                    <option value="5" selected>5 Questions</option>
+                    <option value="7">7 Questions</option>
+                    <option value="10">10 Questions</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                  <button class="btn" onclick="startTrivia()">Start Game</button>
+                  <button class="btn btn-secondary" onclick="endTrivia()">End Game</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Manual Answer Check</h3>
+                <p style="color:#aaa;margin-bottom:15px;font-size:13px;">Test answer matching:</p>
+                <div class="input-group">
+                  <label>Answer</label>
+                  <input type="text" id="test-answer" placeholder="Enter answer...">
+                </div>
+                <div class="input-group">
+                  <label>Username</label>
+                  <input type="text" id="test-user" placeholder="Username" value="TestUser">
+                </div>
+                <div style="margin-top:20px;">
+                  <button class="btn" onclick="checkAnswer()">Check Answer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Middle Column: Leaderboard -->
+          <div class="card trivia-leaderboard-card">
+            <h3>Leaderboard</h3>
+            <div id="trivia-leaderboard">
+              <div class="empty-state">No players yet</div>
+            </div>
+          </div>
+
+          <!-- Right Column: Chat -->
+          <div class="card trivia-chat-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h3 style="margin:0;">Chat <span id="chat-count" style="color:#888;font-size:14px;font-weight:normal;">(0)</span></h3>
+              <button class="btn btn-secondary" onclick="clearChatBuffer()" style="padding:4px 10px;font-size:11px;">Clear</button>
+            </div>
+            <div style="display:flex;gap:15px;margin-bottom:10px;align-items:center;">
+              <label style="display:flex;align-items:center;gap:5px;color:#aaa;font-size:13px;">
+                <input type="checkbox" id="auto-match" checked style="width:14px;height:14px;">
+                Auto-match answers
+              </label>
+            </div>
+            <p style="color:#666;font-size:12px;margin-bottom:10px;">Click a message to manually award an answer</p>
+            <div id="chat-buffer" class="chat-buffer-scroll">
+              <div class="empty-state" style="padding:30px;">No messages yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Movies -->
+      <div id="page-movies" class="page hidden">
+        <div class="header">
+          <h2>Movie Game</h2>
+          <div class="status">
+            <span id="movie-status">Inactive</span>
+          </div>
+        </div>
+
+        <div class="movies-layout">
+          <!-- Left Column: Controls & Current Movie -->
+          <div class="movies-main">
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                <h3 style="margin:0;">Current Movie</h3>
+                <div style="display:flex;gap:10px;">
+                  <button class="btn" onclick="nextMovie()">Next Movie</button>
+                  <button class="btn btn-secondary" onclick="revealMovie()">Skip/Reveal</button>
+                </div>
+              </div>
+              <div id="movie-current">
+                <div class="empty-state">No active movie</div>
+              </div>
+            </div>
+
+            <div class="trivia-controls-row">
+              <div class="card">
+                <h3>Game Controls</h3>
+                <div class="input-group">
+                  <label>Number of Movies</label>
+                  <select id="movie-count">
+                    <option value="3">3 Movies</option>
+                    <option value="5" selected>5 Movies</option>
+                    <option value="7">7 Movies</option>
+                    <option value="10">10 Movies</option>
+                  </select>
+                </div>
+                <div class="input-group">
+                  <label>Total Game Time</label>
+                  <select id="movie-game-time">
+                    <option value="60">1 Minute</option>
+                    <option value="120">2 Minutes</option>
+                    <option value="180" selected>3 Minutes</option>
+                    <option value="240">4 Minutes</option>
+                    <option value="300">5 Minutes</option>
+                  </select>
+                </div>
+                <div class="input-group">
+                  <label>Max Points per Movie</label>
+                  <select id="movie-points">
+                    <option value="100">100 Points</option>
+                    <option value="250">250 Points</option>
+                    <option value="500" selected>500 Points</option>
+                    <option value="1000">1000 Points</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                  <button class="btn" onclick="startMovieGame()">Start Game</button>
+                  <button class="btn btn-secondary" onclick="endMovieGame()">End Game</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Movie Library</h3>
+                <p style="color:#aaa;margin-bottom:15px;font-size:13px;">Add movie poster images to:</p>
+                <div style="background:#0f3460;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;color:#FF8C00;margin-bottom:15px;word-break:break-all;">
+                  C:\Streaming\Media\Games\Movies\
+                </div>
+                <p style="color:#888;font-size:12px;margin-bottom:10px;">Name each file as the movie title (e.g., "The Matrix.jpg")</p>
+                <div id="movie-library-count" style="color:#aaa;">Loading...</div>
+                <button class="btn btn-secondary" onclick="refreshMovieLibrary()" style="margin-top:10px;">Refresh Library</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Leaderboard</h3>
+              <div id="movie-leaderboard">
+                <div class="empty-state">No players yet</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Chat -->
+          <div class="card movies-chat-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h3 style="margin:0;">Chat <span id="movie-chat-count" style="color:#888;font-size:14px;font-weight:normal;">(0)</span></h3>
+              <button class="btn btn-secondary" onclick="clearMovieChatBuffer()" style="padding:4px 10px;font-size:11px;">Clear</button>
+            </div>
+            <p style="color:#666;font-size:12px;margin-bottom:10px;">Live guesses from chat</p>
+            <div id="movie-chat-buffer" class="chat-buffer-scroll">
+              <div class="empty-state" style="padding:30px;">No messages yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DBD Challenges -->
+      <div id="page-dbd" class="page hidden">
+        <!-- Challenge Selection View -->
+        <div id="dbd-challenge-select" class="hidden">
+          <div class="header">
+            <h2>DBD Challenges</h2>
+          </div>
+          <div class="card">
+            <h3>Select a Challenge</h3>
+            <div id="dbd-challenge-list" style="display:grid;gap:15px;margin-top:15px;">
+              <div class="dbd-challenge-card" onclick="dbdSelectChallengeType('barebones-endurance')">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                  <div>
+                    <h4 style="color:#FF8C00;margin:0 0 8px 0;">Barebones Endurance Challenge</h4>
+                    <p style="color:#aaa;font-size:13px;margin:0;">No addons, no perks. Play all killers before running out of points.</p>
+                    <p style="color:#666;font-size:12px;margin:8px 0 0 0;">Ultimate goal: Move all killers to Free tier!</p>
+                  </div>
+                  <span style="color:#4caf50;font-size:24px;">&#10148;</span>
+                </div>
+              </div>
+              <!-- More challenge types can be added here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Challenge View -->
+        <div id="dbd-challenge-active">
+          <div class="header">
+            <h2 id="dbd-challenge-title">Barebones Endurance Challenge</h2>
+            <div class="status">
+              <span id="dbd-status">Inactive</span>
+            </div>
+          </div>
+
+          <div class="dbd-layout">
+            <!-- Left: Main challenge area -->
+            <div class="dbd-main">
+              <!-- Season/Run Stats -->
+              <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                  <div>
+                    <span style="color:#888;">Season <span id="dbd-season">1</span></span>
+                    <span style="color:#666;margin:0 10px;">|</span>
+                    <span style="color:#888;">Run <span id="dbd-run">1</span></span>
+                  </div>
+                  <div id="dbd-free-pool-progress" style="color:#4caf50;">
+                    Free Pool: <span id="dbd-free-pool-count">2</span>/44
+                  </div>
+                </div>
+
+                <div class="dbd-stats-row">
+                  <div class="dbd-stat-box" id="dbd-points-box">
+                    <div class="value" id="dbd-points">0</div>
+                    <div class="label">Current Points</div>
+                  </div>
+                  <div class="dbd-stat-box">
+                    <div class="value" id="dbd-games">0</div>
+                    <div class="label">Games Played</div>
+                  </div>
+                  <div class="dbd-stat-box">
+                    <div class="value" id="dbd-total-kills">0</div>
+                    <div class="label">Total Kills</div>
+                  </div>
+                  <div class="dbd-stat-box">
+                    <div class="value" id="dbd-killers-played">0/44</div>
+                    <div class="label">Killers Done</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+                  <button class="btn" onclick="dbdStartChallenge()">New Season</button>
+                  <button class="btn btn-secondary" onclick="dbdNewRun()">New Run</button>
+                  <button class="btn btn-secondary" onclick="dbdEndChallenge()">End</button>
+                  <button class="btn btn-secondary" onclick="dbdShowChallengeSelect()">Change Challenge</button>
+                </div>
+              </div>
+
+              <!-- Run Completion / Promote Killer -->
+              <div class="card hidden" id="dbd-run-complete-card">
+                <h3 style="color:#4caf50;">Run Complete!</h3>
+                <p style="color:#aaa;margin-bottom:15px;">You played all killers! Choose one to add to your permanent Free Pool:</p>
+                <div class="input-group">
+                  <label>Select Killer to Promote</label>
+                  <select id="dbd-promote-killer" style="width:200px;"></select>
+                </div>
+                <button class="btn" onclick="dbdPromoteKiller()">Promote to Free Pool</button>
+              </div>
+
+              <!-- Current Game -->
+              <div class="card" id="dbd-current-game-card">
+                <h3>Record Game Result</h3>
+                <div id="dbd-current-game">
+                  <p style="color:#888;margin-bottom:15px;">Select a killer from the tiers below, or use Randomize to pick one randomly.</p>
+                  <button class="btn" onclick="dbdRandomizeKiller()" id="dbd-randomize-btn" style="background:linear-gradient(135deg,#FF8C00,#e94560);border:none;margin-bottom:15px;">🎲 Randomize Killer</button>
+                  <div id="dbd-selected-killer" style="display:none;background:#0f3460;padding:15px;border-radius:8px;margin-bottom:15px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <div>
+                        <span style="color:#aaa;">Playing as:</span>
+                        <span id="dbd-selected-killer-name" style="color:#FFD700;font-size:20px;font-weight:bold;margin-left:10px;"></span>
+                      </div>
+                      <button class="btn btn-secondary" onclick="dbdCancelSelection()" style="padding:5px 15px;">Cancel</button>
+                    </div>
+                  </div>
+                  <div class="input-group" style="display:inline-block;width:auto;margin-right:15px;">
+                    <label>Kills (1 point each)</label>
+                    <select id="dbd-kills" style="width:100px;">
+                      <option value="0">0</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                    </select>
+                  </div>
+                  <button class="btn" onclick="dbdRecordGame()" id="dbd-record-btn" disabled>Record Game</button>
+                  <button class="btn" onclick="dbdCheckTracker()" style="background:#0f3460;border-color:#FF8C00;margin-left:10px;">Check Tracker</button>
+                </div>
+              </div>
+
+              <!-- Killer Tiers -->
+              <div class="card">
+                <h3>Killer Tiers</h3>
+                <p style="color:#888;margin-bottom:15px;">Click a killer to select them. Cost is deducted immediately.</p>
+                <div id="dbd-tiers">
+                  <div class="empty-state">Loading...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: History & Settings -->
+          <div style="display:flex;flex-direction:column;gap:20px;overflow-y:auto;">
+            <div id="dbd-tracker-pending" class="card" style="display:none;border-left:3px solid #FF8C00;">
+              <div style="font-size:12px;color:#888;margin-bottom:5px;">NEW MATCH DETECTED</div>
+              <div style="font-size:16px;color:#FFD700;font-weight:bold;" id="dbd-pending-killer">-</div>
+              <div style="color:#aaa;font-size:13px;margin:5px 0;" id="dbd-pending-stats">-</div>
+              <div style="margin-top:10px;display:flex;gap:8px;">
+                <button class="btn" onclick="dbdApplyTrackerMatch()" style="padding:6px 15px;">Apply to Challenge</button>
+                <button class="btn btn-secondary" onclick="dbdDismissTrackerMatch()" style="padding:6px 15px;">Dismiss</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Challenge Rules</h3>
+              <div style="font-size:13px;color:#aaa;line-height:1.6;">
+                <p><strong style="color:#FF8C00;">Goal:</strong> Reach Iri 1 in as few games as possible</p>
+                <p><strong style="color:#FF8C00;">Rules:</strong> No addons, no perks. Play all killers before running out of points.</p>
+                <p><strong style="color:#4caf50;">Points:</strong> +1 per kill, +1 per pip earned</p>
+                <p><strong style="color:#e94560;">Reset:</strong> If points hit 0, the board randomizes</p>
+                <p><strong style="color:#FFD700;">Win Reward:</strong> Add a killer to the Free tier!</p>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Challenge Setup</h3>
+
+              <!-- Difficulty Presets -->
+              <div style="margin-bottom:15px;">
+                <label style="color:#aaa;font-size:12px;display:block;margin-bottom:8px;">Difficulty Preset</label>
+                <div id="dbd-presets" style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn btn-secondary dbd-preset-btn" data-preset="easy">Easy</button>
+                  <button class="btn btn-secondary dbd-preset-btn active" data-preset="standard">Standard</button>
+                  <button class="btn btn-secondary dbd-preset-btn" data-preset="hard">Hard</button>
+                  <button class="btn btn-secondary dbd-preset-btn" data-preset="hardcore">Hardcore</button>
+                  <button class="btn btn-secondary dbd-preset-btn" data-preset="custom">Custom</button>
+                </div>
+              </div>
+
+              <!-- Difficulty Metrics -->
+              <div id="dbd-metrics" style="background:#0f3460;padding:12px;border-radius:8px;margin-bottom:15px;">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+                  <div>
+                    <div style="color:#FFD700;font-size:18px;font-weight:bold;" id="dbd-metric-cost">0</div>
+                    <div style="color:#888;font-size:11px;">Total Cost</div>
+                  </div>
+                  <div>
+                    <div style="color:#4caf50;font-size:18px;font-weight:bold;" id="dbd-metric-surplus">0</div>
+                    <div style="color:#888;font-size:11px;">Point Surplus</div>
+                  </div>
+                  <div>
+                    <div style="font-size:18px;font-weight:bold;" id="dbd-metric-rating">Standard</div>
+                    <div style="color:#888;font-size:11px;">Difficulty</div>
+                  </div>
+                </div>
+                <div style="color:#666;font-size:11px;margin-top:10px;text-align:center;" id="dbd-metric-detail">
+                  Avg needed: 3.0 per game to complete
+                </div>
+              </div>
+
+              <!-- Core Settings -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+                <div class="input-group" style="margin:0;">
+                  <label>Starting Points</label>
+                  <input type="number" id="dbd-starting-points" value="3" min="0" max="50" onchange="dbdConfigChanged()">
+                </div>
+                <div class="input-group" style="margin:0;">
+                  <label>Pip Goal</label>
+                  <input type="number" id="dbd-pip-goal" value="85" min="1" max="200" onchange="dbdConfigChanged()">
+                </div>
+              </div>
+
+              <!-- Tier Costs -->
+              <details style="margin-bottom:15px;">
+                <summary style="color:#FF8C00;cursor:pointer;margin-bottom:10px;">Tier Costs</summary>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Ash</label>
+                    <input type="number" class="dbd-tier-cost" data-tier="ash" value="2" min="0" max="20" onchange="dbdConfigChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Bronze</label>
+                    <input type="number" class="dbd-tier-cost" data-tier="bronze" value="3" min="0" max="20" onchange="dbdConfigChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Silver</label>
+                    <input type="number" class="dbd-tier-cost" data-tier="silver" value="4" min="0" max="20" onchange="dbdConfigChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Gold</label>
+                    <input type="number" class="dbd-tier-cost" data-tier="gold" value="5" min="0" max="20" onchange="dbdConfigChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Iri</label>
+                    <input type="number" class="dbd-tier-cost" data-tier="iri" value="8" min="0" max="20" onchange="dbdConfigChanged()">
+                  </div>
+                </div>
+              </details>
+
+              <!-- Killer Distribution -->
+              <details style="margin-bottom:15px;">
+                <summary style="color:#FF8C00;cursor:pointer;margin-bottom:10px;">Killer Distribution (<span id="dbd-total-killers">44</span> total)</summary>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Free (locked)</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="free" value="2" disabled style="opacity:0.5;">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Ash</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="ash" value="8" min="0" max="42" onchange="dbdDistributionChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Bronze</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="bronze" value="9" min="0" max="42" onchange="dbdDistributionChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Silver</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="silver" value="9" min="0" max="42" onchange="dbdDistributionChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Gold</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="gold" value="9" min="0" max="42" onchange="dbdDistributionChanged()">
+                  </div>
+                  <div class="input-group" style="margin:0;">
+                    <label style="font-size:11px;">Iri</label>
+                    <input type="number" class="dbd-tier-dist" data-tier="iri" value="7" min="0" max="42" onchange="dbdDistributionChanged()">
+                  </div>
+                </div>
+                <div id="dbd-dist-warning" style="color:#e94560;font-size:11px;margin-top:8px;display:none;">
+                  Distribution must equal 44 killers
+                </div>
+              </details>
+
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-secondary" onclick="dbdSaveConfig()">Save Config</button>
+                <button class="btn btn-secondary" onclick="dbdPreviewRandomize()">Preview Randomize</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Game History</h3>
+              <div id="dbd-history" style="max-height:300px;overflow-y:auto;">
+                <div class="empty-state" style="padding:20px;">No games recorded</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overlays -->
+      <div id="page-overlays" class="page hidden">
+        <div class="header">
+          <h2>Browser Source Overlays</h2>
+        </div>
+        <div class="card">
+          <h3>Available Overlays</h3>
+          <p style="margin-bottom:15px;color:#aaa;">Add these URLs as Browser Sources in OBS/Meld:</p>
+          <div class="overlay-url">
+            <span>http://localhost:8877/alerts.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/alerts.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/trivia.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/trivia.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/events.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/events.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/stats.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/stats.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/movies.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/movies.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/dbd.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/dbd.html')">Copy</button>
+          </div>
+          <div class="overlay-url">
+            <span>http://localhost:8877/dbd-widget.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/dbd-widget.html')">Copy</button>
+          </div>
+          <p style="color:#666;font-size:12px;margin-top:5px;">
+            Widget position: Add <code>?position=top-left</code>, <code>top-right</code>, <code>bottom-left</code>, or <code>bottom-right</code>
+          </p>
+          <div class="overlay-url">
+            <span>http://localhost:8877/dbd-dashboard.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/dbd-dashboard.html')">Copy</button>
+          </div>
+          <p style="color:#666;font-size:12px;margin-top:5px;">
+            Full 1920x1080 dashboard for between games - shows all killers, tiers, and detailed stats
+          </p>
+          <div class="overlay-url">
+            <span>http://localhost:8877/dbd-alerts.html</span>
+            <button class="copy-btn" onclick="copyUrl('http://localhost:8877/dbd-alerts.html')">Copy</button>
+          </div>
+          <p style="color:#666;font-size:12px;margin-top:5px;">
+            Animated alerts - killer selection, game results, run complete/failed, promotions
+          </p>
+        </div>
+      </div>
+
+      <!-- Twitch -->
+      <div id="page-twitch" class="page hidden">
+        <div class="header">
+          <h2>Twitch Integration</h2>
+          <div class="status">
+            <div class="status-dot" id="twitch-status-dot" style="background:#e94560;"></div>
+            <span id="twitch-status-text">Disconnected</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left Column: Setup & Controls -->
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <!-- Connection Card -->
+            <div class="card">
+              <h3>Connection</h3>
+              <div id="twitch-connection-status" style="margin-bottom:15px;padding:10px;border-radius:6px;background:#1a1a2e;">
+                <span style="color:#888;">Not connected</span>
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button class="btn" onclick="twitchConnect()" id="twitch-connect-btn">Connect</button>
+                <button class="btn btn-secondary" onclick="twitchDisconnect()" id="twitch-disconnect-btn" disabled>Disconnect</button>
+              </div>
+            </div>
+
+            <!-- Setup Card -->
+            <div class="card">
+              <h3>Twitch App Setup</h3>
+              <p style="color:#888;font-size:12px;margin-bottom:15px;">
+                Create a Twitch app at <a href="https://dev.twitch.tv/console" target="_blank" style="color:#9146FF;">dev.twitch.tv/console</a><br>
+                Set OAuth Redirect URL to: <code style="background:#0f3460;padding:2px 6px;border-radius:3px;">http://localhost</code>
+              </p>
+              <div class="input-group">
+                <label>Channel Name</label>
+                <input type="text" id="twitch-channel" placeholder="your_channel_name">
+              </div>
+              <div class="input-group">
+                <label>Client ID</label>
+                <input type="text" id="twitch-client-id" placeholder="Your Twitch App Client ID">
+              </div>
+              <div class="input-group">
+                <label>Client Secret</label>
+                <input type="password" id="twitch-client-secret" placeholder="Your Twitch App Client Secret">
+              </div>
+              <div class="input-group">
+                <label>Access Token</label>
+                <input type="password" id="twitch-access-token" placeholder="OAuth Access Token">
+              </div>
+              <div class="input-group">
+                <label>Refresh Token</label>
+                <input type="password" id="twitch-refresh-token" placeholder="OAuth Refresh Token">
+              </div>
+              <p style="color:#666;font-size:11px;margin-bottom:10px;">
+                Get tokens from <a href="https://twitchtokengenerator.com/" target="_blank" style="color:#9146FF;">twitchtokengenerator.com</a> with scopes: chat:read, chat:edit, channel:read:subscriptions, bits:read, channel:read:redemptions, moderator:read:followers
+              </p>
+              <div style="display:flex;gap:10px;">
+                <button class="btn" onclick="twitchSaveSettings()">Save Settings</button>
+                <button class="btn btn-secondary" onclick="twitchClearSettings()">Clear All</button>
+              </div>
+            </div>
+
+            <!-- Send Message Card -->
+            <div class="card">
+              <h3>Send Chat Message</h3>
+              <div style="display:flex;gap:10px;">
+                <input type="text" id="twitch-message-input" placeholder="Type a message..." style="flex:1;">
+                <button class="btn" onclick="twitchSendMessage()">Send</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Chat & Events -->
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <!-- Chat Card -->
+            <div class="card" style="flex:1;">
+              <h3>Chat <span id="twitch-chat-count" style="color:#666;font-size:12px;"></span></h3>
+              <div id="twitch-chat-log" style="height:300px;overflow-y:auto;background:#0a0a15;border-radius:6px;padding:10px;font-size:13px;">
+                <div style="color:#666;text-align:center;padding:20px;">Connect to see chat messages</div>
+              </div>
+            </div>
+
+            <!-- Events Card -->
+            <div class="card" style="flex:1;">
+              <h3>Events <span id="twitch-event-count" style="color:#666;font-size:12px;"></span></h3>
+              <div id="twitch-event-log" style="height:200px;overflow-y:auto;background:#0a0a15;border-radius:6px;padding:10px;font-size:13px;">
+                <div style="color:#666;text-align:center;padding:20px;">Follows, subs, raids, bits, redemptions will appear here</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ticker Messages -->
+      <div id="page-ticker" class="page hidden">
+        <div class="header">
+          <h2>Ticker Messages</h2>
+          <button class="btn" onclick="showAddTicker()">Add Message</button>
+        </div>
+        <div class="card">
+          <h3>About Ticker</h3>
+          <p style="color:#aaa;margin-bottom:10px;">The ticker bar at the bottom of the chatting overlay cycles through these messages. When a DBD Challenge is active, challenge rules will also be included in the rotation.</p>
+        </div>
+        <div class="card">
+          <h3>Messages</h3>
+          <div id="ticker-messages-list">
+            <div class="empty-state">Loading messages...</div>
+          </div>
+        </div>
+        <div id="ticker-add-form" class="card hidden">
+          <h3 id="ticker-form-title">Add Message</h3>
+          <div class="input-group">
+            <label>Message Text</label>
+            <input type="text" id="ticker-message-text" placeholder="Enter ticker message..." style="width:100%;">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:15px;">
+            <button class="btn" onclick="saveTicker()">Save</button>
+            <button class="btn btn-secondary" onclick="cancelTicker()">Cancel</button>
+            <label style="display:flex;align-items:center;gap:5px;color:#aaa;font-size:13px;margin-left:auto;">
+              <input type="checkbox" id="ticker-message-enabled" checked style="width:14px;height:14px;">
+              Enabled
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <!-- Commands Page -->
+      <div id="page-commands" class="page hidden">
+        <div class="header">
+          <h2>Chat Commands & Triggers</h2>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Add Command / Trigger</h3>
+            <div class="input-group">
+              <label>Trigger Text</label>
+              <input type="text" id="cmd-trigger" placeholder="e.g., !hello or poggers">
+            </div>
+            <div class="input-group">
+              <label>Match Type</label>
+              <select id="cmd-match-type">
+                <option value="exact">Exact Match (whole message equals trigger)</option>
+                <option value="startswith">Starts With (like a command with !prefix)</option>
+                <option value="contains">Contains (trigger appears anywhere in message)</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Action</label>
+              <select id="cmd-action" onchange="updateActionValueField()">
+                <option value="sound">Play Sound</option>
+                <option value="alert">Trigger Alert</option>
+              </select>
+            </div>
+            <div class="input-group" id="cmd-value-group">
+              <label id="cmd-value-label">Sound File</label>
+              <select id="cmd-value">
+                <option value="">Select a sound...</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Who Can Trigger</label>
+              <select id="cmd-permission">
+                <option value="everyone">Everyone</option>
+                <option value="subscribers">Subscribers+</option>
+                <option value="mods">Mods & Broadcaster</option>
+                <option value="broadcaster">Broadcaster Only</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button class="btn" onclick="saveCommand()">Add Command</button>
+              <button class="btn btn-secondary" onclick="clearCommandForm()">Clear</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Settings</h3>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:15px;">
+              <input type="checkbox" id="commands-enabled" onchange="saveCommandSettings()" checked style="width:16px;height:16px;">
+              Enable Chat Commands & Triggers
+            </label>
+            <h4 style="color:#e94560;margin-bottom:10px;font-size:14px;">Built-in Commands</h4>
+            <p style="color:#888;font-size:12px;margin-bottom:10px;">These commands are always available:</p>
+            <div style="background:#0f3460;padding:10px;border-radius:6px;margin-bottom:15px;">
+              <div style="margin-bottom:8px;"><code style="color:#4caf50;">!sound &lt;name&gt;</code> - Play a sound</div>
+              <div style="margin-bottom:8px;"><code style="color:#4caf50;">!sfx &lt;name&gt;</code> - Play a sound (alias)</div>
+              <div><code style="color:#4caf50;">!alert &lt;type&gt;</code> - Trigger an alert</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="input-group" style="margin:0;">
+                <label>!sound permission</label>
+                <select id="perm-sound" onchange="saveCommandSettings()">
+                  <option value="broadcaster">Broadcaster</option>
+                  <option value="mods" selected>Mods+</option>
+                  <option value="subscribers">Subs+</option>
+                  <option value="everyone">Everyone</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin:0;">
+                <label>!sfx permission</label>
+                <select id="perm-sfx" onchange="saveCommandSettings()">
+                  <option value="broadcaster">Broadcaster</option>
+                  <option value="mods">Mods+</option>
+                  <option value="subscribers">Subs+</option>
+                  <option value="everyone" selected>Everyone</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Custom Commands & Triggers</h3>
+          <div id="commands-list">
+            <div class="empty-state">No custom commands yet. Add one above!</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sounds & Alerts Page -->
+      <div id="page-sounds" class="page hidden">
+        <div class="header">
+          <h2>Sounds & Alerts</h2>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Alert Sounds</h3>
+            <p style="color:#888;font-size:13px;margin-bottom:15px;">Configure which sound plays for each alert type</p>
+            <div id="alert-sounds-config">
+              <div class="input-group">
+                <label>Follow Alert</label>
+                <select id="sound-follow" onchange="saveAlertSounds()">
+                  <option value="">No sound</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Subscribe Alert</label>
+                <select id="sound-subscription" onchange="saveAlertSounds()">
+                  <option value="">No sound</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Raid Alert</label>
+                <select id="sound-raid" onchange="saveAlertSounds()">
+                  <option value="">No sound</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Cheer/Bits Alert</label>
+                <select id="sound-cheer" onchange="saveAlertSounds()">
+                  <option value="">No sound</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Gift Sub Alert</label>
+                <select id="sound-gift" onchange="saveAlertSounds()">
+                  <option value="">No sound</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:15px;">
+              <label style="display:flex;align-items:center;gap:8px;">
+                <span>Volume:</span>
+                <input type="range" id="alert-volume" min="0" max="100" value="70" onchange="saveAlertSounds()" style="flex:1;">
+                <span id="volume-display">70%</span>
+              </label>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Sound Files</h3>
+            <p style="color:#888;font-size:13px;margin-bottom:15px;">Add sound files for alerts and Stream Deck triggers</p>
+            <div style="margin-bottom:15px;">
+              <input type="file" id="sound-upload" accept=".mp3,.wav,.ogg" multiple style="display:none;" onchange="uploadSoundFiles(event)">
+              <button class="btn" onclick="document.getElementById('sound-upload').click()">Upload Sound Files</button>
+              <button class="btn btn-secondary" onclick="openSoundsFolder()" style="margin-left:10px;">Open Sounds Folder</button>
+            </div>
+            <div id="sounds-list" style="max-height:300px;overflow-y:auto;">
+              <div class="empty-state">Loading sounds...</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Test Alerts</h3>
+          <p style="color:#888;font-size:13px;margin-bottom:15px;">Test your alert sounds and overlays</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn" onclick="testAlert('follow')">Test Follow</button>
+            <button class="btn" onclick="testAlert('subscription')">Test Subscribe</button>
+            <button class="btn" onclick="testAlert('raid')">Test Raid</button>
+            <button class="btn" onclick="testAlert('cheer')">Test Cheer</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Stream Deck Integration</h3>
+          <p style="color:#888;font-size:13px;margin-bottom:15px;">Use these endpoints with Stream Deck's Website/API action</p>
+          <div class="overlay-url">
+            <span>Play Sound: POST http://localhost:8877/api/trigger/sound</span>
+            <button class="copy-btn" onclick="copyToClipboard('http://localhost:8877/api/trigger/sound')">Copy</button>
+          </div>
+          <div style="background:#0f3460;padding:12px;border-radius:6px;margin-bottom:10px;">
+            <p style="color:#aaa;font-size:12px;margin-bottom:8px;">Body (JSON):</p>
+            <code style="color:#4caf50;">{"sound": "airhorn.mp3"}</code>
+          </div>
+          <div class="overlay-url">
+            <span>Trigger Alert: POST http://localhost:8877/api/trigger/alert</span>
+            <button class="copy-btn" onclick="copyToClipboard('http://localhost:8877/api/trigger/alert')">Copy</button>
+          </div>
+          <div style="background:#0f3460;padding:12px;border-radius:6px;">
+            <p style="color:#aaa;font-size:12px;margin-bottom:8px;">Body (JSON):</p>
+            <code style="color:#4caf50;">{"type": "follow", "message": "Custom message!"}</code>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-settings" class="page hidden">
+        <div class="header">
+          <h2>Settings</h2>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>DBD Tracker Integration</h3>
+            <div id="dbd-tracker-status" style="margin-bottom:10px;">
+              <span style="color:#888;">Not configured</span>
+            </div>
+            <div class="input-group">
+              <label>Tracker API URL (with key)</label>
+              <input type="password" id="dbd-tracker-url" placeholder="https://dbd.soupymediagroup.com/api/v1/public/matches?key=...">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+              <button class="btn" onclick="dbdSaveTrackerUrl()">Save URL</button>
+              <button class="btn btn-secondary" onclick="dbdCheckTracker()">Check Now</button>
+              <label style="display:flex;align-items:center;gap:5px;color:#aaa;font-size:13px;">
+                <input type="checkbox" id="dbd-auto-poll" onchange="dbdToggleAutoPoll()" style="width:14px;height:14px;">
+                Auto-poll (60s)
+              </label>
+            </div>
+            <p style="color:#666;font-size:11px;">Get your API URL from DBD Tracker: Profile > Companion API > Generate</p>
+          </div>
+          <div class="card">
+            <h3>Streamerbot Connection</h3>
+            <div class="input-group">
+              <label>Host</label>
+              <input type="text" id="sb-host" value="127.0.0.1">
+            </div>
+            <div class="input-group">
+              <label>Port</label>
+              <input type="number" id="sb-port" value="8080">
+            </div>
+            <button class="btn" onclick="saveSettings()">Save</button>
+          </div>
+          <div class="card">
+            <h3>OBS Connection</h3>
+            <div class="input-group">
+              <label>Host</label>
+              <input type="text" id="obs-host" value="127.0.0.1">
+            </div>
+            <div class="input-group">
+              <label>Port</label>
+              <input type="number" id="obs-port" value="4455">
+            </div>
+            <button class="btn" onclick="saveSettings()">Save</button>
+          </div>
+          <div class="card">
+            <h3>App Updates</h3>
+            <div style="margin-bottom:12px;">
+              <span style="color:#888;">Version: </span>
+              <span id="app-version">Loading...</span>
+            </div>
+            <div id="update-status" style="margin-bottom:12px;color:#888;">
+              Click "Check for Updates" to check for new versions.
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button class="btn" onclick="checkForUpdates()">Check for Updates</button>
+              <button class="btn btn-secondary" id="install-update-btn" onclick="installUpdate()" style="display:none;">Install & Restart</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    let ws;
+    let reconnectInterval;
+    let updateReady = false;
+
+    // ========== APP UPDATES ==========
+    async function loadAppVersion() {
+      try {
+        const version = await ipcRenderer.invoke('get-version');
+        document.getElementById('app-version').textContent = 'v' + version;
+      } catch (e) {
+        document.getElementById('app-version').textContent = 'Unknown';
+      }
+    }
+
+    function checkForUpdates() {
+      document.getElementById('update-status').textContent = 'Checking for updates...';
+      document.getElementById('update-status').style.color = '#888';
+      ipcRenderer.invoke('check-for-updates');
+    }
+
+    function installUpdate() {
+      ipcRenderer.invoke('install-update');
+    }
+
+    ipcRenderer.on('update-status', (event, text) => {
+      document.getElementById('update-status').textContent = text;
+      if (text.includes('error')) {
+        document.getElementById('update-status').style.color = '#ff6b6b';
+      } else if (text.includes('up to date')) {
+        document.getElementById('update-status').style.color = '#00ff88';
+      } else {
+        document.getElementById('update-status').style.color = '#888';
+      }
+    });
+
+    ipcRenderer.on('update-downloaded', (event, version) => {
+      updateReady = true;
+      document.getElementById('update-status').textContent = `Update v${version} ready! Click "Install & Restart" to install.`;
+      document.getElementById('update-status').style.color = '#00ff88';
+      document.getElementById('install-update-btn').style.display = 'inline-block';
+    });
+
+    // Load version on startup
+    loadAppVersion();
+
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+        item.classList.add('active');
+        document.getElementById('page-' + item.dataset.page).classList.remove('hidden');
+
+        // Load DBD config when navigating to DBD page
+        if (item.dataset.page === 'dbd') {
+          loadDbdConfig();
+          loadPendingMatch(); // Check for pending tracker matches
+        }
+        // Load tracker settings when navigating to Settings page
+        if (item.dataset.page === 'settings') {
+          loadDbdTrackerSettings();
+        }
+        // Load ticker messages when navigating to Ticker page
+        if (item.dataset.page === 'ticker') {
+          loadTickerMessages();
+        }
+      });
+    });
+
+    // WebSocket connection
+    function connectWebSocket() {
+      ws = new WebSocket('ws://localhost:8878');
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        document.getElementById('status-dot').classList.remove('disconnected');
+        document.getElementById('status-text').textContent = 'Connected';
+        clearInterval(reconnectInterval);
+        loadData();
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        document.getElementById('status-dot').classList.add('disconnected');
+        document.getElementById('status-text').textContent = 'Disconnected';
+        reconnectInterval = setInterval(connectWebSocket, 5000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+      };
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'alerts':
+          renderAlerts(data.data);
+          break;
+        case 'new-alert':
+          addAlert(data.data);
+          break;
+        case 'actions':
+          renderActions(data.data);
+          break;
+        case 'games':
+          renderGames(data.data);
+          break;
+      }
+    }
+
+    async function loadData() {
+      try {
+        const [alerts, actions, games, settings] = await Promise.all([
+          fetch('http://localhost:8877/api/alerts').then(r => r.json()).catch(() => []),
+          fetch('http://localhost:8877/api/actions').then(r => r.json()).catch(() => []),
+          fetch('http://localhost:8877/api/games').then(r => r.json()).catch(() => []),
+          fetch('http://localhost:8877/api/settings').then(r => r.json()).catch(() => ({}))
+        ]);
+
+        renderAlerts(alerts);
+        renderActions(actions);
+        renderGames(games);
+        loadSettings(settings);
+
+        const statAlerts = document.getElementById('stat-alerts');
+        const statActions = document.getElementById('stat-actions');
+        const statGames = document.getElementById('stat-games');
+        if (statAlerts) statAlerts.textContent = alerts.length;
+        if (statActions) statActions.textContent = actions.length;
+        if (statGames) statGames.textContent = games.length;
+
+        // Check sync status
+        checkSyncStatus();
+      } catch (e) {
+        console.error('Error loading data:', e);
+      }
+    }
+
+    async function checkSyncStatus() {
+      try {
+        const res = await fetch('http://localhost:8877/api/status');
+        const status = await res.json();
+        const syncEl = document.getElementById('sync-status');
+        if (syncEl) {
+          if (status.localServer && status.remoteSyncConnected) {
+            syncEl.textContent = 'Connected';
+            syncEl.style.color = '#4caf50';
+          } else if (status.localServer) {
+            syncEl.textContent = 'Disconnected';
+            syncEl.style.color = '#f44336';
+          } else {
+            syncEl.textContent = 'Standalone Mode';
+            syncEl.style.color = '#888';
+          }
+        }
+      } catch (e) {
+        const syncEl = document.getElementById('sync-status');
+        if (syncEl) {
+          syncEl.textContent = 'Offline';
+          syncEl.style.color = '#f44336';
+        }
+      }
+    }
+
+    function renderAlerts(alerts) {
+      const container = document.getElementById('alerts-list');
+      const recent = document.getElementById('recent-alerts');
+
+      if (!container && !recent) return; // Elements don't exist
+
+      if (!alerts || alerts.length === 0) {
+        if (container) container.innerHTML = '<div class="empty-state">No alerts recorded</div>';
+        if (recent) recent.innerHTML = '<div class="empty-state">No alerts yet</div>';
+        return;
+      }
+
+      const html = alerts.slice(0, 20).map(a => `
+        <div class="alert-item">
+          <div>
+            <span class="alert-type">${a.type || 'alert'}</span>
+            <span style="margin-left:10px">${a.message || a.name || 'Alert'}</span>
+          </div>
+          <span class="alert-time">${new Date(a.createdAt).toLocaleString()}</span>
+        </div>
+      `).join('');
+
+      if (container) container.innerHTML = html;
+      if (recent) recent.innerHTML = alerts.slice(0, 5).map(a => `
+        <div class="alert-item">
+          <div>
+            <span class="alert-type">${a.type || 'alert'}</span>
+            <span style="margin-left:10px">${a.message || a.name || 'Alert'}</span>
+          </div>
+          <span class="alert-time">${new Date(a.createdAt).toLocaleString()}</span>
+        </div>
+      `).join('');
+    }
+
+    function addAlert(alert) {
+      loadData();
+    }
+
+    function renderActions(actions) {
+      const container = document.getElementById('actions-list');
+      if (!container) return; // Element doesn't exist
+      if (!actions || actions.length === 0) {
+        container.innerHTML = '<div class="empty-state">No actions configured</div>';
+        return;
+      }
+      container.innerHTML = actions.map(a => `
+        <div class="alert-item">
+          <span>${a.name}</span>
+          <span class="alert-type">${a.trigger || 'manual'}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderGames(games) {
+      const container = document.getElementById('games-list');
+      if (!container) return; // Element doesn't exist
+      if (!games || games.length === 0) {
+        container.innerHTML = '<div class="empty-state">No games tracked</div>';
+        return;
+      }
+      container.innerHTML = games.map(g => `
+        <div class="alert-item">
+          <span>${g.name}</span>
+          <span class="alert-time">${g.category || ''}</span>
+        </div>
+      `).join('');
+    }
+
+    function loadSettings(settings) {
+      if (settings.streamerbot) {
+        document.getElementById('sb-host').value = settings.streamerbot.host || '127.0.0.1';
+        document.getElementById('sb-port').value = settings.streamerbot.port || 8080;
+      }
+      if (settings.obs) {
+        document.getElementById('obs-host').value = settings.obs.host || '127.0.0.1';
+        document.getElementById('obs-port').value = settings.obs.port || 4455;
+      }
+    }
+
+    async function saveSettings() {
+      const settings = {
+        streamerbot: {
+          host: document.getElementById('sb-host').value,
+          port: parseInt(document.getElementById('sb-port').value)
+        },
+        obs: {
+          host: document.getElementById('obs-host').value,
+          port: parseInt(document.getElementById('obs-port').value)
+        }
+      };
+      await fetch('http://localhost:8877/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      alert('Settings saved!');
+    }
+
+    // Soupy_Games profile for testing
+    const SOUPY_PROFILE = 'https://static-cdn.jtvnw.net/jtv_user_pictures/a37d7ff4-f6d4-4ef9-9e3b-583d795eb060-profile_image-300x300.png';
+
+    const TEST_ALERTS = {
+      follow: { type: 'follow', message: 'Soupy_Games just followed!', profileImage: SOUPY_PROFILE },
+      subscriber: { type: 'subscriber', message: 'Soupy_Games subscribed!', subtext: 'Tier 1 - 1 Month', profileImage: SOUPY_PROFILE },
+      raid: { type: 'raid', message: 'Soupy_Games is raiding with 50 viewers!', profileImage: SOUPY_PROFILE },
+      bits: { type: 'bits', message: 'Soupy_Games cheered 500 bits!', subtext: 'Pog', profileImage: SOUPY_PROFILE },
+      donation: { type: 'donation', message: '$10.00 from Soupy_Games', subtext: 'Great stream!', profileImage: SOUPY_PROFILE }
+    };
+
+    async function testAlert(type) {
+      // Map old types to new event types
+      const typeMap = {
+        'follow': 'follow',
+        'subscriber': 'subscription',
+        'raid': 'raid',
+        'bits': 'cheer',
+        'donation': 'cheer'
+      };
+
+      try {
+        const res = await fetch('http://localhost:8877/api/test-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: typeMap[type] || type })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Error: ' + (data.error || 'Failed to send test alert'));
+        }
+      } catch (e) {
+        alert('Failed to send test alert: ' + e.message);
+      }
+    }
+
+    async function testCustomAlert() {
+      const type = prompt('Alert type (follow, subscription, raid, cheer, gift):') || 'follow';
+
+      try {
+        const res = await fetch('http://localhost:8877/api/test-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Error: ' + (data.error || 'Failed to send test alert'));
+        }
+      } catch (e) {
+        alert('Failed to send test alert: ' + e.message);
+      }
+    }
+
+    function copyUrl(url) {
+      navigator.clipboard.writeText(url);
+    }
+
+    function showAddAction() {
+      const name = prompt('Action name:');
+      if (name) {
+        fetch('http://localhost:8877/api/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, trigger: 'manual' })
+        }).then(() => loadData());
+      }
+    }
+
+    function showAddGame() {
+      const name = prompt('Game name:');
+      if (name) {
+        fetch('http://localhost:8877/api/games', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, category: 'Game' })
+        }).then(() => loadData());
+      }
+    }
+
+    // ==========================================
+    // TRIVIA GAME FUNCTIONS
+    // ==========================================
+
+    let triviaState = { active: false };
+
+    async function startTrivia() {
+      const category = document.getElementById('trivia-category').value;
+      const maxQuestions = parseInt(document.getElementById('trivia-questions').value);
+
+      try {
+        const res = await fetch('http://localhost:8877/api/trivia/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, maxQuestions })
+        });
+        const data = await res.json();
+        if (data.success) {
+          triviaState = data.state;
+          // Clear chat buffer and answers for new game
+          chatBuffer = [];
+          currentAnswers = [];
+          renderChatBuffer();
+
+          document.getElementById('trivia-status').textContent = 'Active - Showing Intro';
+          document.getElementById('trivia-status').style.color = '#4caf50';
+          document.getElementById('trivia-current').innerHTML = `
+            <div style="text-align:center;padding:20px;">
+              <p style="color:#FF8C00;font-size:18px;margin-bottom:10px;">Intro screen is now showing on stream</p>
+              <p style="color:#aaa;">Click "Next Question" to show the first question</p>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('Error starting trivia:', e);
+        alert('Failed to start trivia game');
+      }
+    }
+
+    async function nextQuestion() {
+      try {
+        const res = await fetch('http://localhost:8877/api/trivia/next-question', {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('trivia-status').textContent = `Active - Q${data.question.questionNumber}/${data.question.maxQuestions}`;
+          // Clear local chat buffer for new question
+          chatBuffer = [];
+          renderChatBuffer();
+          // Store current answers for manual awarding
+          currentAnswers = data.question.answers.map(a => ({
+            text: a.text,
+            points: a.points,
+            revealed: a.revealed || false,
+            answeredBy: a.answeredBy || null
+          }));
+          renderCurrentQuestion(data.question);
+        } else {
+          alert(data.error || 'No more questions');
+        }
+      } catch (e) {
+        console.error('Error getting next question:', e);
+      }
+    }
+
+    function renderCurrentQuestion(q) {
+      const html = `
+        <div style="margin-bottom:15px;">
+          <strong style="color:#e94560;">Question ${q.questionNumber}/${q.maxQuestions}:</strong>
+          <p style="margin-top:5px;font-size:16px;">${q.question}</p>
+        </div>
+        <p style="color:#888;font-size:12px;margin-bottom:10px;">Answers visible to you only. Click to reveal on stream:</p>
+        <div id="answer-list">
+          ${q.answers.map((a, i) => `
+            <div class="alert-item" style="cursor:pointer;${a.revealed ? 'background:#2d5a3d;border-left:3px solid #4caf50;' : 'border-left:3px solid #e94560;'}" onclick="revealAnswer(${i})">
+              <div style="display:flex;flex-direction:column;">
+                <span>${i+1}. ${a.text}</span>
+                ${a.revealed && a.answeredBy ? `<span style="font-size:11px;color:#888;margin-top:2px;">Answered by: ${a.answeredBy}</span>` : ''}
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="alert-type" style="${a.revealed ? 'background:#4caf50;' : ''}">${a.points} pts</span>
+                ${a.revealed ? '<span style="color:#4caf50;font-size:12px;">ON STREAM</span>' : '<span style="color:#888;font-size:12px;">HIDDEN</span>'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      document.getElementById('trivia-current').innerHTML = html;
+    }
+
+    async function revealAnswer(index) {
+      try {
+        await fetch(`http://localhost:8877/api/trivia/reveal/${index}`, {
+          method: 'POST'
+        });
+        // Refresh question state - get full answers for host view
+        const state = await fetch('http://localhost:8877/api/trivia/state').then(r => r.json());
+        if (state.currentQuestion) {
+          const q = {
+            question: state.currentQuestion.question,
+            answers: state.currentQuestion.answers.map((a, i) => ({
+              text: a.text,
+              points: a.points,
+              revealed: state.answersRevealed.includes(i),
+              answeredBy: a.answeredBy
+            })),
+            questionNumber: state.questionCount,
+            maxQuestions: state.maxQuestions
+          };
+          renderCurrentQuestion(q);
+        }
+        updateLeaderboard();
+      } catch (e) {
+        console.error('Error revealing answer:', e);
+      }
+    }
+
+    async function revealAll() {
+      try {
+        await fetch('http://localhost:8877/api/trivia/reveal-all', {
+          method: 'POST'
+        });
+        // Refresh state with full answers for host view
+        const state = await fetch('http://localhost:8877/api/trivia/state').then(r => r.json());
+        if (state.currentQuestion) {
+          const q = {
+            question: state.currentQuestion.question,
+            answers: state.currentQuestion.answers.map((a, i) => ({
+              text: a.text,
+              points: a.points,
+              revealed: true,
+              answeredBy: a.answeredBy
+            })),
+            questionNumber: state.questionCount,
+            maxQuestions: state.maxQuestions
+          };
+          renderCurrentQuestion(q);
+        }
+      } catch (e) {
+        console.error('Error revealing all:', e);
+      }
+    }
+
+    async function checkAnswer() {
+      const answer = document.getElementById('test-answer').value;
+      const user = document.getElementById('test-user').value || 'TestUser';
+      const autoMatch = document.getElementById('auto-match').checked;
+
+      if (!answer) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/trivia/check-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answer, user, autoMatch })
+        });
+        const data = await res.json();
+
+        document.getElementById('test-answer').value = '';
+
+        if (data.correct) {
+          // Auto-matched - refresh UI
+          refreshTriviaState();
+          updateLeaderboard();
+        }
+        // Message was stored in chat buffer regardless - it will appear via WebSocket
+      } catch (e) {
+        console.error('Error checking answer:', e);
+      }
+    }
+
+    async function updateLeaderboard() {
+      try {
+        const leaderboard = await fetch('http://localhost:8877/api/trivia/leaderboard').then(r => r.json());
+        const container = document.getElementById('trivia-leaderboard');
+        if (leaderboard.length === 0) {
+          container.innerHTML = '<div class="empty-state">No players yet</div>';
+          return;
+        }
+        container.innerHTML = leaderboard.map((p, i) => `
+          <div class="alert-item">
+            <span>#${i+1} ${p.name}</span>
+            <span class="alert-type">${p.points} pts (${p.correctAnswers} correct)</span>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Error updating leaderboard:', e);
+      }
+    }
+
+    async function endTrivia() {
+      try {
+        const res = await fetch('http://localhost:8877/api/trivia/end', {
+          method: 'POST'
+        });
+        const data = await res.json();
+        triviaState = { active: false };
+        chatBuffer = [];
+        currentAnswers = [];
+        renderChatBuffer();
+
+        document.getElementById('trivia-status').textContent = 'Inactive';
+        document.getElementById('trivia-status').style.color = '';
+        document.getElementById('trivia-current').innerHTML = '<div class="empty-state">Game ended</div>';
+
+        if (data.leaderboard && data.leaderboard.length > 0) {
+          const winner = data.leaderboard[0];
+          alert(`Game Over! Winner: ${winner.name} with ${winner.points} points!`);
+        }
+        updateLeaderboard();
+      } catch (e) {
+        console.error('Error ending trivia:', e);
+      }
+    }
+
+    // Chat buffer for trivia
+    let chatBuffer = [];
+    let currentAnswers = []; // Store current question answers for manual award
+
+    // Handle trivia WebSocket messages
+    const originalHandleMessage = handleMessage;
+    handleMessage = function(data) {
+      originalHandleMessage(data);
+
+      switch (data.type) {
+        case 'trivia-chat':
+          addChatMessage(data.data);
+          break;
+        case 'trivia-answer-reveal':
+          // Update chat message if it was auto-matched
+          if (data.data.index !== undefined) {
+            updateChatMessageMatch(data.data);
+          }
+          updateLeaderboard();
+          refreshTriviaState();
+          break;
+      }
+    };
+
+    function addChatMessage(msg) {
+      chatBuffer.push(msg);
+      renderChatBuffer();
+    }
+
+    function updateChatMessageMatch(revealData) {
+      // Find and update any chat message that matched this answer
+      chatBuffer.forEach(msg => {
+        if (msg.matchedAnswer === revealData.index) {
+          msg.processed = true;
+        }
+      });
+      renderChatBuffer();
+    }
+
+    function renderChatBuffer() {
+      const container = document.getElementById('chat-buffer');
+      const countEl = document.getElementById('chat-count');
+      countEl.textContent = `(${chatBuffer.length})`;
+
+      if (chatBuffer.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px;">No messages yet</div>';
+        return;
+      }
+
+      container.innerHTML = chatBuffer.map(msg => {
+        const isMatched = msg.processed && msg.matchedAnswer !== null;
+        const bgColor = isMatched ? '#1a3d1a' : '#1a1a2e';
+        const borderColor = isMatched ? '#4caf50' : '#333';
+
+        return `
+          <div class="chat-msg" data-id="${msg.id}" style="
+            padding:10px;
+            margin-bottom:8px;
+            background:${bgColor};
+            border:1px solid ${borderColor};
+            border-radius:6px;
+            cursor:${isMatched ? 'default' : 'pointer'};
+          " ${isMatched ? '' : `onclick="showAwardOptions(${msg.id}, '${msg.user.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'")}')" `}>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#FF8C00;font-weight:bold;">${msg.user}</span>
+              <span style="color:#666;font-size:11px;">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <div style="color:#fff;margin-top:4px;">${msg.message}</div>
+            ${isMatched ? `<div style="color:#4caf50;font-size:12px;margin-top:4px;">Matched Answer #${msg.matchedAnswer + 1}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      // Auto-scroll to bottom
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Snapshot of answers when modal opened (prevents race conditions)
+    let modalAnswersSnapshot = [];
+
+    function showAwardOptions(msgId, user, message) {
+      if (!currentAnswers || currentAnswers.length === 0) {
+        alert('No active question to award answers for');
+        return;
+      }
+
+      // Take a snapshot of current answers to prevent race conditions
+      modalAnswersSnapshot = JSON.parse(JSON.stringify(currentAnswers));
+
+      // Create modal for answer selection
+      const modal = document.createElement('div');
+      modal.id = 'award-modal';
+      modal.style.cssText = `
+        position:fixed;top:0;left:0;right:0;bottom:0;
+        background:rgba(0,0,0,0.8);display:flex;
+        align-items:center;justify-content:center;z-index:1000;
+      `;
+
+      const availableAnswers = modalAnswersSnapshot.filter((a, i) => !a.revealed);
+      const revealedAnswers = modalAnswersSnapshot.filter((a, i) => a.revealed);
+
+      // Build buttons with data attributes for reliable index tracking
+      let availableHtml = '';
+      let revealedHtml = '';
+
+      modalAnswersSnapshot.forEach((a, i) => {
+        if (!a.revealed) {
+          availableHtml += `
+            <button data-answer-index="${i}" data-user="${user.replace(/"/g, '&quot;')}" data-msg-id="${msgId}" class="award-btn" style="
+              background:#0f3460;border:2px solid #FF8C00;color:#fff;padding:12px;
+              border-radius:6px;cursor:pointer;text-align:left;width:100%;
+            ">
+              <span style="color:#FFD700;font-weight:bold;">#${i+1}:</span> ${a.text}
+              <span style="float:right;color:#FF8C00;">${a.points} pts</span>
+            </button>
+          `;
+        } else {
+          revealedHtml += `
+            <button data-answer-index="${i}" data-user="${user.replace(/"/g, '&quot;')}" data-msg-id="${msgId}" class="award-btn override" style="
+              background:#2d1a1a;border:2px solid #e94560;color:#fff;padding:12px;
+              border-radius:6px;cursor:pointer;text-align:left;width:100%;
+            ">
+              <span style="color:#FFD700;font-weight:bold;">#${i+1}:</span> ${a.text}
+              <span style="color:#888;font-size:12px;margin-left:10px;">(currently: ${a.answeredBy || 'auto'})</span>
+              <span style="float:right;color:#FF8C00;">${a.points} pts</span>
+            </button>
+          `;
+        }
+      });
+
+      modal.innerHTML = `
+        <div style="background:#16213e;border-radius:12px;padding:25px;max-width:500px;width:90%;">
+          <h3 style="color:#FF8C00;margin-bottom:15px;">Award Answer to ${user}</h3>
+          <p style="color:#aaa;margin-bottom:5px;">Message:</p>
+          <p style="color:#fff;background:#0f3460;padding:10px;border-radius:6px;margin-bottom:20px;">"${message}"</p>
+
+          ${availableAnswers.length > 0 ? `
+            <p style="color:#aaa;margin-bottom:10px;">Select an answer to award:</p>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px;">
+              ${availableHtml}
+            </div>
+          ` : '<p style="color:#888;margin-bottom:15px;">All answers have been revealed.</p>'}
+
+          ${revealedAnswers.length > 0 ? `
+            <p style="color:#e94560;margin-bottom:10px;font-size:13px;">Override existing answer (reassign points):</p>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px;">
+              ${revealedHtml}
+            </div>
+          ` : ''}
+
+          <button onclick="closeAwardModal()" style="
+            background:#333;border:none;color:#fff;padding:10px 20px;
+            border-radius:6px;cursor:pointer;width:100%;
+          ">Cancel</button>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      // Add click handlers via event delegation (more reliable than inline onclick)
+      modal.querySelectorAll('.award-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const index = parseInt(this.dataset.answerIndex);
+          const btnUser = this.dataset.user;
+          const btnMsgId = parseInt(this.dataset.msgId);
+          console.log('Award button clicked:', { index, user: btnUser, msgId: btnMsgId });
+          awardAnswer(index, btnUser, btnMsgId);
+        });
+      });
+
+      modal.onclick = (e) => { if (e.target === modal) closeAwardModal(); };
+    }
+
+    function closeAwardModal() {
+      const modal = document.getElementById('award-modal');
+      if (modal) modal.remove();
+    }
+
+    async function awardAnswer(answerIndex, user, chatMessageId) {
+      closeAwardModal();
+
+      // Log the answer being awarded for debugging
+      const answerInfo = modalAnswersSnapshot[answerIndex];
+      console.log('Awarding answer:', {
+        answerIndex,
+        answerText: answerInfo ? answerInfo.text : 'unknown',
+        answerPoints: answerInfo ? answerInfo.points : 'unknown',
+        user,
+        chatMessageId
+      });
+
+      try {
+        const res = await fetch('http://localhost:8877/api/trivia/award', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answerIndex, user, chatMessageId })
+        });
+        const data = await res.json();
+        console.log('Award response:', data);
+        if (data.success) {
+          // Update local chat buffer
+          const msg = chatBuffer.find(m => m.id === chatMessageId);
+          if (msg) {
+            msg.processed = true;
+            msg.matchedAnswer = answerIndex;
+          }
+          renderChatBuffer();
+          refreshTriviaState();
+          updateLeaderboard();
+        } else {
+          alert(data.error || 'Failed to award answer');
+        }
+      } catch (e) {
+        console.error('Error awarding answer:', e);
+        alert('Failed to award answer');
+      }
+    }
+
+    async function refreshTriviaState() {
+      try {
+        const state = await fetch('http://localhost:8877/api/trivia/state').then(r => r.json());
+        if (state.currentQuestion) {
+          currentAnswers = state.currentQuestion.answers.map((a, i) => ({
+            text: a.text,
+            points: a.points,
+            revealed: state.answersRevealed.includes(i),
+            answeredBy: a.answeredBy
+          }));
+          const q = {
+            question: state.currentQuestion.question,
+            answers: currentAnswers,
+            questionNumber: state.questionCount,
+            maxQuestions: state.maxQuestions
+          };
+          renderCurrentQuestion(q);
+        }
+      } catch (e) {
+        console.error('Error refreshing state:', e);
+      }
+    }
+
+    async function clearChatBuffer() {
+      chatBuffer = [];
+      renderChatBuffer();
+      try {
+        await fetch('http://localhost:8877/api/trivia/chat/clear', { method: 'POST' });
+      } catch (e) {
+        console.error('Error clearing chat buffer:', e);
+      }
+    }
+
+    // ========== GAME STATS FUNCTIONS ==========
+
+    async function loadGameStats() {
+      try {
+        const res = await fetch('http://localhost:8877/api/games/leaderboard');
+        const data = await res.json();
+
+        // Update period info
+        const periodEl = document.getElementById('games-period-info');
+        if (data.periodStart) {
+          const startDate = new Date(data.periodStart);
+          periodEl.textContent = `Period started: ${startDate.toLocaleDateString()}`;
+        } else {
+          periodEl.textContent = 'No active period';
+        }
+
+        // Update total games count
+        const countEl = document.getElementById('games-total-count');
+        countEl.textContent = `${data.totalGames || 0} games played`;
+
+        // Update placement points inputs
+        if (data.placementPoints) {
+          document.getElementById('points-first').value = data.placementPoints.first;
+          document.getElementById('points-second').value = data.placementPoints.second;
+          document.getElementById('points-third').value = data.placementPoints.third;
+        }
+
+        // Render leaderboard
+        renderGamesLeaderboard(data.players || []);
+
+        // Load history
+        loadGameHistory();
+      } catch (e) {
+        console.error('Error loading game stats:', e);
+      }
+    }
+
+    function renderGamesLeaderboard(players) {
+      const container = document.getElementById('games-leaderboard');
+
+      if (!players || players.length === 0) {
+        container.innerHTML = '<div class="empty-state">No players yet. Play some trivia!</div>';
+        return;
+      }
+
+      container.innerHTML = players.map((player, index) => {
+        const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+        return `
+          <div class="games-player-row ${rankClass}">
+            <div class="games-player-rank">#${index + 1}</div>
+            <div class="games-player-name">${player.name}</div>
+            <div class="games-player-stats">
+              <span title="Wins">🥇${player.wins || 0}</span>
+              <span title="2nd Place">🥈${player.secondPlace || 0}</span>
+              <span title="3rd Place">🥉${player.thirdPlace || 0}</span>
+              <span title="Games Played">🎮${player.gamesPlayed || 0}</span>
+            </div>
+            <div class="games-player-points">${player.totalPoints} pts</div>
+            <button class="games-player-delete" onclick="deleteGamePlayer('${player.name}')" title="Remove player">✕</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadGameHistory() {
+      try {
+        const res = await fetch('http://localhost:8877/api/games/history');
+        const data = await res.json();
+
+        const container = document.getElementById('games-history');
+        const history = data.history || [];
+
+        if (history.length === 0) {
+          container.innerHTML = '<div class="empty-state" style="padding:20px;">No games played</div>';
+          return;
+        }
+
+        // Show most recent first
+        container.innerHTML = history.slice().reverse().slice(0, 20).map(game => {
+          const date = new Date(game.date);
+          const winner = game.leaderboard && game.leaderboard[0] ? game.leaderboard[0].name : 'N/A';
+          return `
+            <div class="games-history-item">
+              <span class="date">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span><br>
+              <span class="winner">${winner}</span> won (${game.category || 'Trivia'}, ${game.questionCount || '?'} questions)
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Error loading game history:', e);
+      }
+    }
+
+    async function savePlacementPoints() {
+      const first = document.getElementById('points-first').value;
+      const second = document.getElementById('points-second').value;
+      const third = document.getElementById('points-third').value;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/games/placement-points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first, second, third })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Placement points saved!');
+        }
+      } catch (e) {
+        console.error('Error saving placement points:', e);
+        alert('Failed to save placement points');
+      }
+    }
+
+    async function resetPeriod(keepHistory) {
+      const message = keepHistory
+        ? 'Reset all player stats but keep game history?'
+        : 'Reset all player stats AND game history? This cannot be undone!';
+
+      if (!confirm(message)) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/games/reset-period', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keepHistory })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Period reset successfully!');
+          loadGameStats();
+        }
+      } catch (e) {
+        console.error('Error resetting period:', e);
+        alert('Failed to reset period');
+      }
+    }
+
+    async function exportGameStats() {
+      try {
+        const res = await fetch('http://localhost:8877/api/games/export');
+        const data = await res.json();
+
+        // Create and download JSON file
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `game-stats-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Error exporting stats:', e);
+        alert('Failed to export stats');
+      }
+    }
+
+    async function deleteGamePlayer(playerName) {
+      if (!confirm(`Remove ${playerName} from the leaderboard?`)) return;
+
+      try {
+        const res = await fetch(`http://localhost:8877/api/games/player/${encodeURIComponent(playerName)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadGameStats();
+        }
+      } catch (e) {
+        console.error('Error deleting player:', e);
+        alert('Failed to remove player');
+      }
+    }
+
+    // Load game stats when switching to the games page
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        if (this.dataset.page === 'games') {
+          loadGameStats();
+        }
+        if (this.dataset.page === 'movies') {
+          refreshMovieLibrary();
+          loadMovieState();
+        }
+      });
+    });
+
+    // ========== MOVIE GAME FUNCTIONS ==========
+
+    let movieChatBuffer = [];
+
+    async function refreshMovieLibrary() {
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/available');
+        const data = await res.json();
+        document.getElementById('movie-library-count').innerHTML = `
+          <span style="color:#4caf50;font-weight:bold;">${data.count}</span> movies available
+        `;
+      } catch (e) {
+        document.getElementById('movie-library-count').textContent = 'Error loading library';
+      }
+    }
+
+    async function loadMovieState() {
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/state');
+        const state = await res.json();
+
+        const statusEl = document.getElementById('movie-status');
+        if (state.active) {
+          statusEl.textContent = `Active - Movie ${state.movieCount}/${state.maxMovies}`;
+          statusEl.style.color = '#4caf50';
+
+          if (state.currentMovie) {
+            renderMovieCurrent(state);
+          }
+        } else {
+          statusEl.textContent = 'Inactive';
+          statusEl.style.color = '';
+          document.getElementById('movie-current').innerHTML = '<div class="empty-state">No active movie</div>';
+        }
+      } catch (e) {
+        console.error('Error loading movie state:', e);
+      }
+    }
+
+    function renderMovieCurrent(state) {
+      const current = document.getElementById('movie-current');
+      if (!state.currentMovie) {
+        current.innerHTML = '<div class="empty-state">Click "Next Movie" to start</div>';
+        return;
+      }
+
+      const revealPercent = state.revealLevel || 0;
+      const answered = state.answered ? `<span style="color:#4caf50;">Answered by ${state.answeredBy}</span>` : `<span style="color:#FF8C00;">${revealPercent}% revealed</span>`;
+
+      current.innerHTML = `
+        <div style="background:#0f3460;padding:15px;border-radius:8px;">
+          <div style="font-size:24px;color:#FFD700;font-weight:bold;margin-bottom:10px;">${state.currentMovie.name}</div>
+          <div style="color:#aaa;">Movie ${state.movieCount} of ${state.maxMovies}</div>
+          <div style="margin-top:10px;">${answered}</div>
+        </div>
+      `;
+
+      // Render leaderboard
+      renderMovieLeaderboard(state.players || {});
+    }
+
+    function renderMovieLeaderboard(players) {
+      const container = document.getElementById('movie-leaderboard');
+      const sorted = Object.entries(players)
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.points - a.points);
+
+      if (sorted.length === 0) {
+        container.innerHTML = '<div class="empty-state">No players yet</div>';
+        return;
+      }
+
+      container.innerHTML = sorted.slice(0, 10).map((p, i) => `
+        <div class="games-player-row ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : ''}">
+          <div class="games-player-rank">#${i + 1}</div>
+          <div class="games-player-name">${p.name}</div>
+          <div class="games-player-points">${p.points} pts</div>
+        </div>
+      `).join('');
+    }
+
+    async function startMovieGame() {
+      const maxMovies = document.getElementById('movie-count').value;
+      const pointsPerMovie = document.getElementById('movie-points').value;
+      const totalGameTime = document.getElementById('movie-game-time').value;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            maxMovies: parseInt(maxMovies),
+            pointsPerMovie: parseInt(pointsPerMovie),
+            totalGameTime: parseInt(totalGameTime)
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('movie-status').textContent = 'Active';
+          document.getElementById('movie-status').style.color = '#4caf50';
+
+          // Show intro
+          await fetch('http://localhost:8877/api/movies/intro', { method: 'POST' });
+
+          document.getElementById('movie-current').innerHTML = `
+            <div style="text-align:center;padding:20px;">
+              <p style="color:#FF8C00;font-size:18px;margin-bottom:10px;">Intro screen is now showing on stream</p>
+              <p style="color:#aaa;">Click "Next Movie" to show the first movie</p>
+            </div>
+          `;
+
+          movieChatBuffer = [];
+          renderMovieChatBuffer();
+        } else {
+          alert(data.error || 'Failed to start game');
+        }
+      } catch (e) {
+        console.error('Error starting movie game:', e);
+        alert('Failed to start movie game');
+      }
+    }
+
+    async function nextMovie() {
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/next', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('movie-status').textContent = `Active - Movie ${data.movie.number}/${data.movie.maxMovies}`;
+
+          document.getElementById('movie-current').innerHTML = `
+            <div style="background:#0f3460;padding:15px;border-radius:8px;">
+              <div style="font-size:24px;color:#FFD700;font-weight:bold;margin-bottom:10px;">${data.movie.name}</div>
+              <div style="color:#aaa;">Movie ${data.movie.number} of ${data.movie.maxMovies}</div>
+              <div style="margin-top:10px;color:#FF8C00;">Revealing...</div>
+            </div>
+          `;
+
+          movieChatBuffer = [];
+          renderMovieChatBuffer();
+        } else {
+          alert(data.error || 'No more movies');
+        }
+      } catch (e) {
+        console.error('Error getting next movie:', e);
+        alert('Failed to get next movie');
+      }
+    }
+
+    async function revealMovie() {
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/reveal', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          loadMovieState();
+        }
+      } catch (e) {
+        console.error('Error revealing movie:', e);
+      }
+    }
+
+    async function endMovieGame() {
+      if (!confirm('End the current movie game?')) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/end', { method: 'POST' });
+        const data = await res.json();
+
+        document.getElementById('movie-status').textContent = 'Inactive';
+        document.getElementById('movie-status').style.color = '';
+        document.getElementById('movie-current').innerHTML = '<div class="empty-state">Game ended</div>';
+
+        if (data.leaderboard && data.leaderboard.length > 0) {
+          const winner = data.leaderboard[0];
+          alert(`Game Over! Winner: ${winner.name} with ${winner.points} points!`);
+        }
+      } catch (e) {
+        console.error('Error ending movie game:', e);
+      }
+    }
+
+    function renderMovieChatBuffer() {
+      const container = document.getElementById('movie-chat-buffer');
+      const countEl = document.getElementById('movie-chat-count');
+      countEl.textContent = `(${movieChatBuffer.length})`;
+
+      if (movieChatBuffer.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px;">No messages yet</div>';
+        return;
+      }
+
+      container.innerHTML = movieChatBuffer.map(msg => `
+        <div style="padding:8px;margin-bottom:6px;background:#1a1a2e;border-radius:6px;border-left:3px solid ${msg.correct ? '#4caf50' : '#333'};">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#FF8C00;font-weight:bold;">${msg.user}</span>
+            ${msg.correct ? '<span style="color:#4caf50;font-size:11px;">CORRECT!</span>' : ''}
+          </div>
+          <div style="color:#ccc;margin-top:4px;">${msg.message}</div>
+        </div>
+      `).join('');
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function clearMovieChatBuffer() {
+      movieChatBuffer = [];
+      renderMovieChatBuffer();
+    }
+
+    // Handle movie WebSocket messages
+    const originalMovieHandler = handleMessage;
+    handleMessage = function(data) {
+      originalMovieHandler(data);
+
+      switch (data.type) {
+        case 'movie-chat':
+          movieChatBuffer.push(data.data);
+          renderMovieChatBuffer();
+          break;
+
+        case 'movie-correct':
+          // Mark the message as correct
+          const correctMsg = movieChatBuffer.find(m => m.id === data.data.chatMessageId);
+          if (correctMsg) correctMsg.correct = true;
+          renderMovieChatBuffer();
+          loadMovieState();
+          break;
+
+        case 'movie-timeout':
+        case 'movie-reveal':
+          loadMovieState();
+          break;
+      }
+    };
+
+    // ========== DBD CHALLENGE FUNCTIONS ==========
+
+    let dbdState = { active: false, killers: {}, tiers: {} };
+    let dbdSelectedKiller = null;
+    let dbdSelectedChallengeType = null; // Track which challenge type is selected
+    let dbdConfig = {
+      preset: 'standard',
+      startingPoints: 3,
+      tierCosts: { free: 0, ash: 2, bronze: 3, silver: 4, gold: 5, iri: 8 },
+      distribution: { free: 2, ash: 8, bronze: 9, silver: 9, gold: 9, iri: 7 },
+      pipGoal: 85
+    };
+    let dbdPresets = {};
+
+    async function loadDbdConfig() {
+      try {
+        // Load presets
+        const presetsRes = await fetch('http://localhost:8877/api/dbd/presets');
+        dbdPresets = await presetsRes.json();
+
+        // Load current config
+        const configRes = await fetch('http://localhost:8877/api/dbd/config');
+        const { config, metrics } = await configRes.json();
+        dbdConfig = config;
+
+        updateDbdConfigUI();
+        updateDbdMetrics(metrics);
+      } catch (e) {
+        console.error('Error loading DBD config:', e);
+      }
+    }
+
+    function updateDbdConfigUI() {
+      // Update preset buttons
+      document.querySelectorAll('.dbd-preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === dbdConfig.preset);
+      });
+
+      // Update inputs
+      document.getElementById('dbd-starting-points').value = dbdConfig.startingPoints;
+      const pipGoalEl = document.getElementById('dbd-pip-goal');
+      if (pipGoalEl && dbdConfig.pipGoal !== undefined) {
+        pipGoalEl.value = dbdConfig.pipGoal;
+      }
+
+      // Update tier costs
+      document.querySelectorAll('input.dbd-tier-cost').forEach(input => {
+        const tier = input.dataset.tier;
+        if (tier && dbdConfig.tierCosts[tier] !== undefined) {
+          input.value = dbdConfig.tierCosts[tier];
+        }
+      });
+
+      // Update distribution
+      document.querySelectorAll('input.dbd-tier-dist').forEach(input => {
+        const tier = input.dataset.tier;
+        if (tier && dbdConfig.distribution[tier] !== undefined) {
+          input.value = dbdConfig.distribution[tier];
+        }
+      });
+
+      // Update total killers count
+      const total = Object.values(dbdConfig.distribution).reduce((a, b) => a + b, 0);
+      document.getElementById('dbd-total-killers').textContent = total;
+    }
+
+    function updateDbdMetrics(metrics) {
+      if (!metrics) return;
+
+      document.getElementById('dbd-metric-cost').textContent = metrics.totalCost || 0;
+
+      const surplusEl = document.getElementById('dbd-metric-surplus');
+      const buffer = metrics.pointBuffer || 0;
+      surplusEl.textContent = buffer >= 0 ? '+' + buffer : buffer;
+      surplusEl.style.color = buffer >= 0 ? '#4caf50' : '#e94560';
+
+      const ratingEl = document.getElementById('dbd-metric-rating');
+      ratingEl.textContent = metrics.difficultyRating || 'Unknown';
+      const ratingColors = { 'Easy': '#4caf50', 'Standard': '#FFD700', 'Hard': '#FF8C00', 'Hardcore': '#e94560', 'Impossible': '#ff0000' };
+      ratingEl.style.color = ratingColors[metrics.difficultyRating] || '#fff';
+
+      const avgNeeded = metrics.minAvgNeeded || 0;
+      document.getElementById('dbd-metric-detail').textContent =
+        `Avg needed: ${avgNeeded.toFixed(1)} kills/game | ${metrics.totalKillers || 44} killers`;
+    }
+
+    async function dbdApplyPreset(preset) {
+      if (!dbdPresets[preset]) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preset })
+        });
+        const { config, metrics } = await res.json();
+        dbdConfig = config;
+        updateDbdConfigUI();
+        updateDbdMetrics(metrics);
+      } catch (e) {
+        console.error('Error applying preset:', e);
+      }
+    }
+
+    function dbdConfigChanged() {
+      // Mark as custom
+      document.querySelectorAll('.dbd-preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === 'custom');
+      });
+      dbdConfig.preset = 'custom';
+    }
+
+    function dbdDistributionChanged() {
+      dbdConfigChanged();
+
+      // Validate total
+      let total = 0;
+      document.querySelectorAll('.dbd-tier-dist').forEach(input => {
+        total += parseInt(input.value) || 0;
+      });
+
+      const warning = document.getElementById('dbd-dist-warning');
+      const totalEl = document.getElementById('dbd-total-killers');
+      totalEl.textContent = total;
+
+      if (total !== 44) {
+        warning.style.display = 'block';
+        warning.textContent = `Distribution must equal 44 killers (currently ${total})`;
+        totalEl.style.color = '#e94560';
+      } else {
+        warning.style.display = 'none';
+        totalEl.style.color = '';
+      }
+    }
+
+    async function dbdSaveConfig() {
+      const tierCosts = { free: 0 }; // Include free tier
+      document.querySelectorAll('input.dbd-tier-cost').forEach(input => {
+        if (input.dataset.tier) {
+          tierCosts[input.dataset.tier] = parseInt(input.value) || 0;
+        }
+      });
+
+      const distribution = { free: 2 }; // Free tier is locked at 2
+      document.querySelectorAll('input.dbd-tier-dist:not([disabled])').forEach(input => {
+        if (input.dataset.tier) {
+          distribution[input.dataset.tier] = parseInt(input.value) || 0;
+        }
+      });
+
+      const payload = {
+        startingPoints: parseInt(document.getElementById('dbd-starting-points').value) || 3,
+        tierCosts,
+        distribution
+      };
+
+      console.log('Saving config:', payload);
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        console.log('Config response:', data);
+
+        if (!res.ok) {
+          alert(data.error || 'Failed to save config');
+          return;
+        }
+
+        dbdConfig = data.config;
+        updateDbdMetrics(data.metrics);
+        alert('Configuration saved!');
+      } catch (e) {
+        console.error('Error saving config:', e);
+        alert('Failed to save config: ' + e.message);
+      }
+    }
+
+    async function dbdPreviewRandomize() {
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/preview-randomize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const { tiers, metrics } = await res.json();
+
+        // Show preview in a simple alert for now
+        let preview = 'Randomized Preview:\n\n';
+        const tierOrder = ['free', 'ash', 'bronze', 'silver', 'gold', 'iri'];
+        tierOrder.forEach(tierKey => {
+          if (tiers[tierKey]) {
+            preview += `${tiers[tierKey].name} (${tiers[tierKey].cost}pts): ${tiers[tierKey].killers.join(', ')}\n\n`;
+          }
+        });
+        alert(preview);
+      } catch (e) {
+        console.error('Error previewing randomize:', e);
+      }
+    }
+
+    // Setup preset button handlers
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.dbd-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const preset = btn.dataset.preset;
+          if (preset === 'custom') {
+            document.querySelectorAll('.dbd-preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          } else {
+            dbdApplyPreset(preset);
+          }
+        });
+      });
+    });
+
+    async function loadDbdState() {
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/state');
+        dbdState = await res.json();
+
+        // If a challenge is active, set the selected type
+        if (dbdState.active && dbdState.challengeType) {
+          dbdSelectedChallengeType = dbdState.challengeType;
+        }
+
+        renderDbdState();
+      } catch (e) {
+        console.error('Error loading DBD state:', e);
+      }
+    }
+
+    function dbdShowChallengeSelect() {
+      dbdSelectedChallengeType = null;
+      document.getElementById('dbd-challenge-select').classList.remove('hidden');
+      document.getElementById('dbd-challenge-active').classList.add('hidden');
+    }
+
+    function dbdSelectChallengeType(type) {
+      dbdSelectedChallengeType = type;
+      document.getElementById('dbd-challenge-select').classList.add('hidden');
+      document.getElementById('dbd-challenge-active').classList.remove('hidden');
+      loadDbdState();
+      loadDbdConfig();
+    }
+
+    async function dbdNewRun() {
+      if (!confirm('Start a new run? The board will be randomized.')) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/new-run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ randomize: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+          dbdState = data.state;
+          dbdSelectedKiller = null;
+          updateDbdSelectedKillerUI();
+          renderDbdState();
+        }
+      } catch (e) {
+        console.error('Error starting new run:', e);
+        alert('Failed to start new run');
+      }
+    }
+
+    async function dbdPromoteKiller() {
+      const select = document.getElementById('dbd-promote-killer');
+      const killerName = select.value;
+
+      if (!killerName) {
+        alert('Please select a killer to promote');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/promote-to-free', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ killerName })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`${killerName} has been promoted to the Free Pool! (${data.freePoolSize}/44)`);
+          // Hide the promote card
+          document.getElementById('dbd-run-complete-card').classList.add('hidden');
+          // Start a new run
+          dbdNewRun();
+        } else {
+          alert(data.error || 'Failed to promote killer');
+        }
+      } catch (e) {
+        console.error('Error promoting killer:', e);
+        alert('Failed to promote killer');
+      }
+    }
+
+    function renderDbdState() {
+      // Show appropriate view based on selected challenge type
+      // Only show selection if no challenge type is selected
+      if (!dbdSelectedChallengeType && !dbdState.active) {
+        document.getElementById('dbd-challenge-select').classList.remove('hidden');
+        document.getElementById('dbd-challenge-active').classList.add('hidden');
+        return; // Don't render the rest if showing selection
+      } else {
+        document.getElementById('dbd-challenge-select').classList.add('hidden');
+        document.getElementById('dbd-challenge-active').classList.remove('hidden');
+      }
+
+      // Update status
+      const statusEl = document.getElementById('dbd-status');
+      if (dbdState.active) {
+        statusEl.textContent = 'Active';
+        statusEl.style.color = '#4caf50';
+      } else {
+        statusEl.textContent = 'Inactive';
+        statusEl.style.color = '';
+      }
+
+      // Update season/run info
+      document.getElementById('dbd-season').textContent = dbdState.season || 1;
+      document.getElementById('dbd-run').textContent = dbdState.runNumber || 1;
+
+      // Update free pool progress
+      const freePoolKillers = dbdState.freePoolKillers || ['Trapper', 'Skull Merchant'];
+      document.getElementById('dbd-free-pool-count').textContent = freePoolKillers.length;
+
+      // Update stats
+      document.getElementById('dbd-points').textContent = dbdState.currentPoints || 0;
+      document.getElementById('dbd-games').textContent = dbdState.gamesPlayed || 0;
+      document.getElementById('dbd-total-kills').textContent = dbdState.totalKills || 0;
+
+      // Count played killers
+      const totalKillers = Object.keys(dbdState.killers || {}).length;
+      const playedKillers = Object.values(dbdState.killers || {}).filter(k => k.played).length;
+      document.getElementById('dbd-killers-played').textContent = `${playedKillers}/${totalKillers}`;
+
+      // Check if run is complete
+      const allKillersPlayed = playedKillers === totalKillers && totalKillers > 0;
+      const runCompleteCard = document.getElementById('dbd-run-complete-card');
+
+      if (allKillersPlayed && dbdState.active) {
+        runCompleteCard.classList.remove('hidden');
+        // Populate the promote dropdown with non-free killers
+        const promoteSelect = document.getElementById('dbd-promote-killer');
+        promoteSelect.innerHTML = '<option value="">Select a killer...</option>';
+        Object.keys(dbdState.killers || {}).forEach(killer => {
+          if (!freePoolKillers.includes(killer)) {
+            promoteSelect.innerHTML += `<option value="${killer}">${killer}</option>`;
+          }
+        });
+      } else {
+        runCompleteCard.classList.add('hidden');
+      }
+
+      // Color code points
+      const pointsBox = document.getElementById('dbd-points-box');
+      pointsBox.classList.remove('warning', 'danger', 'success');
+      if (dbdState.currentPoints <= 0) {
+        pointsBox.classList.add('danger');
+      } else if (dbdState.currentPoints <= 3) {
+        pointsBox.classList.add('warning');
+      } else if (dbdState.currentPoints >= 10) {
+        pointsBox.classList.add('success');
+      }
+
+      // Update config inputs from state if available
+      if (dbdState.config) {
+        document.getElementById('dbd-starting-points').value = dbdState.config.startingPoints || 3;
+      }
+
+      // Update metrics if available
+      if (dbdState.metrics) {
+        updateDbdMetrics(dbdState.metrics);
+      }
+
+      // Render tiers
+      renderDbdTiers();
+
+      // Render history
+      renderDbdHistory();
+    }
+
+    function renderDbdTiers() {
+      const container = document.getElementById('dbd-tiers');
+
+      if (!dbdState.tiers || Object.keys(dbdState.tiers).length === 0) {
+        container.innerHTML = '<div class="empty-state">No challenge data. Start a new challenge!</div>';
+        return;
+      }
+
+      const tierOrder = ['free', 'ash', 'bronze', 'silver', 'gold', 'iri'];
+      let html = '';
+
+      tierOrder.forEach(tierKey => {
+        const tier = dbdState.tiers[tierKey];
+        if (!tier) return;
+
+        const canAfford = dbdState.currentPoints >= tier.cost || tier.cost === 0;
+
+        html += `
+          <div class="dbd-tier-section">
+            <div class="dbd-tier-header ${tierKey}">
+              <span>${tier.name} Tier</span>
+              <span class="dbd-tier-cost">${tier.cost} pts</span>
+            </div>
+            <div class="dbd-killer-grid">
+        `;
+
+        tier.killers.forEach(killerName => {
+          const killer = dbdState.killers[killerName] || {};
+          const isPlayed = killer.played;
+          const isSelected = dbdSelectedKiller === killerName;
+          const isDisabled = !dbdState.active || isPlayed || (!canAfford && !isSelected);
+
+          let cardClass = 'dbd-killer-card';
+          if (isPlayed) cardClass += ' played';
+          if (isSelected) cardClass += ' selected';
+          if (isDisabled && !isPlayed) cardClass += ' disabled';
+
+          let statsHtml = '';
+          if (isPlayed) {
+            const net = killer.pointsEarned - killer.pointsSpent;
+            statsHtml = `<div class="dbd-killer-stats success">${killer.kills}K | ${killer.pips > 0 ? '+' : ''}${killer.pips}P | Net: ${net > 0 ? '+' : ''}${net}</div>`;
+          }
+
+          const onClick = isDisabled ? '' : `onclick="dbdSelectKiller('${killerName}')"`;
+
+          html += `
+            <div class="${cardClass}" ${onClick}>
+              <div class="dbd-killer-name">${killerName}</div>
+              ${statsHtml}
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function renderDbdHistory() {
+      const container = document.getElementById('dbd-history');
+      const history = dbdState.history || [];
+
+      if (history.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px;">No games recorded</div>';
+        return;
+      }
+
+      // Show most recent first
+      container.innerHTML = history.slice().reverse().map(game => {
+        const net = game.pointsEarned - game.pointsSpent;
+        const isPositive = net >= 0;
+        return `
+          <div class="dbd-game-result ${isPositive ? 'positive' : 'negative'}">
+            <strong>${game.killer}</strong><br>
+            ${game.kills}K = ${game.pointsEarned} pts |
+            <span style="color:${isPositive ? '#4caf50' : '#e94560'}">${net > 0 ? '+' : ''}${net} net</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function dbdStartChallenge() {
+      if (dbdState.active && !confirm('Start a new season? This will reset all progress including free pool.')) {
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            randomize: true
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          dbdState = data.state;
+          dbdSelectedKiller = null;
+          updateDbdSelectedKillerUI();
+          renderDbdState();
+        }
+      } catch (e) {
+        console.error('Error starting challenge:', e);
+        alert('Failed to start challenge');
+      }
+    }
+
+    async function dbdResetChallenge() {
+      if (!confirm('Reset the challenge? The board will be randomized.')) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ randomize: true, keepSeason: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+          dbdState = data.state;
+          dbdSelectedKiller = null;
+          updateDbdSelectedKillerUI();
+          renderDbdState();
+        }
+      } catch (e) {
+        console.error('Error resetting challenge:', e);
+        alert('Failed to reset challenge');
+      }
+    }
+
+    async function dbdEndChallenge() {
+      if (!confirm('End the current challenge?')) return;
+
+      try {
+        await fetch('http://localhost:8877/api/dbd/end', { method: 'POST' });
+        dbdSelectedKiller = null;
+        updateDbdSelectedKillerUI();
+        loadDbdState();
+      } catch (e) {
+        console.error('Error ending challenge:', e);
+      }
+    }
+
+    async function dbdRandomizeKiller() {
+      const btn = document.getElementById('dbd-randomize-btn');
+      btn.disabled = true;
+      btn.textContent = '🎲 Randomizing...';
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/random-killer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          // Wait for animation to complete before updating UI
+          setTimeout(() => {
+            dbdSelectedKiller = data.selectedKiller;
+            loadDbdState();
+            updateDbdSelectedKillerUI();
+            btn.disabled = false;
+            btn.textContent = '🎲 Randomize Killer';
+          }, data.animationDuration + 1000);
+        } else {
+          alert(data.error || 'Failed to randomize killer');
+          btn.disabled = false;
+          btn.textContent = '🎲 Randomize Killer';
+        }
+      } catch (e) {
+        console.error('Error randomizing killer:', e);
+        alert('Failed to randomize killer');
+        btn.disabled = false;
+        btn.textContent = '🎲 Randomize Killer';
+      }
+    }
+
+    async function dbdSelectKiller(killerName) {
+      if (dbdSelectedKiller === killerName) {
+        // Deselect
+        dbdSelectedKiller = null;
+        updateDbdSelectedKillerUI();
+        renderDbdTiers();
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/select-killer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ killerName })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          dbdSelectedKiller = killerName;
+          dbdState.currentPoints = data.currentPoints;
+          updateDbdSelectedKillerUI();
+          renderDbdState();
+        } else {
+          alert(data.error || 'Failed to select killer');
+        }
+      } catch (e) {
+        console.error('Error selecting killer:', e);
+        alert('Failed to select killer');
+      }
+    }
+
+    function updateDbdSelectedKillerUI() {
+      const container = document.getElementById('dbd-selected-killer');
+      const nameEl = document.getElementById('dbd-selected-killer-name');
+      const recordBtn = document.getElementById('dbd-record-btn');
+
+      if (dbdSelectedKiller) {
+        container.style.display = 'block';
+        nameEl.textContent = dbdSelectedKiller;
+        recordBtn.disabled = false;
+      } else {
+        container.style.display = 'none';
+        nameEl.textContent = '';
+        recordBtn.disabled = true;
+      }
+    }
+
+    function dbdCancelSelection() {
+      // Note: Points are already deducted, so this just clears the UI
+      // In a real scenario you might want to refund the points
+      dbdSelectedKiller = null;
+      updateDbdSelectedKillerUI();
+      renderDbdTiers();
+    }
+
+    async function dbdRecordGame() {
+      if (!dbdSelectedKiller) {
+        alert('Please select a killer first');
+        return;
+      }
+
+      const kills = parseInt(document.getElementById('dbd-kills').value);
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/record-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            killerName: dbdSelectedKiller,
+            kills
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          dbdSelectedKiller = null;
+          updateDbdSelectedKillerUI();
+
+          // Reset kills input
+          document.getElementById('dbd-kills').value = '0';
+
+          loadDbdState();
+
+          if (data.runFailed) {
+            alert('Run failed! You ran out of points. Start a new run to try again.');
+          } else if (data.runCompleted) {
+            // The UI will show the promote card
+          }
+        } else {
+          alert(data.error || 'Failed to record game');
+        }
+      } catch (e) {
+        console.error('Error recording game:', e);
+        alert('Failed to record game');
+      }
+    }
+
+    async function dbdSaveSettings() {
+      try {
+        await fetch('http://localhost:8877/api/dbd/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pipGoal: parseInt(document.getElementById('dbd-pip-goal').value) || 85,
+            gameGoal: parseInt(document.getElementById('dbd-game-goal').value) || 110
+          })
+        });
+        alert('Settings saved!');
+        loadDbdState();
+      } catch (e) {
+        console.error('Error saving settings:', e);
+        alert('Failed to save settings');
+      }
+    }
+
+    async function dbdAddKiller() {
+      const name = document.getElementById('dbd-new-killer-name').value.trim();
+      const tier = document.getElementById('dbd-new-killer-tier').value;
+
+      if (!name) {
+        alert('Please enter a killer name');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/add-killer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ killerName: name, tier })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('dbd-new-killer-name').value = '';
+          alert(`${name} added to ${tier} tier!`);
+          loadDbdState();
+        } else {
+          alert(data.error || 'Failed to add killer');
+        }
+      } catch (e) {
+        console.error('Error adding killer:', e);
+        alert('Failed to add killer');
+      }
+    }
+
+    // ========== DBD TRACKER INTEGRATION ==========
+
+    let dbdPendingMatch = null;
+
+    async function loadDbdTrackerSettings() {
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/tracker/settings');
+        const data = await res.json();
+
+        // Settings page elements (may not exist if on DBD page)
+        const statusEl = document.getElementById('dbd-tracker-status');
+        const autoPollEl = document.getElementById('dbd-auto-poll');
+        const urlInput = document.getElementById('dbd-tracker-url');
+
+        if (statusEl) {
+          if (data.configured) {
+            statusEl.innerHTML = `<span style="color:#4caf50;">Connected</span>` +
+              (data.lastCheck ? ` <span style="color:#666;font-size:11px;">Last check: ${new Date(data.lastCheck).toLocaleTimeString()}</span>` : '');
+          } else {
+            statusEl.innerHTML = '<span style="color:#888;">Not configured</span>';
+          }
+        }
+
+        if (urlInput && data.apiUrl) {
+          urlInput.value = data.apiUrl;
+        }
+
+        if (autoPollEl) {
+          autoPollEl.checked = data.autoPolling || false;
+        }
+
+        // Pending match can show on DBD page
+        if (data.pendingMatch) {
+          showPendingMatch(data.pendingMatch);
+        }
+      } catch (e) {
+        console.error('Error loading tracker settings:', e);
+      }
+    }
+
+    // Load just the pending match (for DBD page)
+    async function loadPendingMatch() {
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/tracker/settings');
+        const data = await res.json();
+        if (data.pendingMatch) {
+          showPendingMatch(data.pendingMatch);
+        }
+      } catch (e) {
+        console.error('Error loading pending match:', e);
+      }
+    }
+
+    async function dbdSaveTrackerUrl() {
+      const url = document.getElementById('dbd-tracker-url').value.trim();
+
+      if (!url) {
+        alert('Please enter the tracker API URL');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/dbd/tracker/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiUrl: url })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert('Tracker URL saved! Click "Check Now" to test.');
+          loadDbdTrackerSettings();
+        } else {
+          alert(data.error || 'Failed to save URL');
+        }
+      } catch (e) {
+        console.error('Error saving tracker URL:', e);
+        alert('Failed to save tracker URL');
+      }
+    }
+
+    async function dbdCheckTracker() {
+      try {
+        const statusEl = document.getElementById('dbd-tracker-status');
+        if (statusEl) {
+          statusEl.innerHTML = '<span style="color:#FF8C00;">Checking...</span>';
+        }
+
+        const res = await fetch('http://localhost:8877/api/dbd/tracker/check', {
+          method: 'POST'
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          alert(data.error);
+          loadDbdTrackerSettings();
+          return;
+        }
+
+        loadDbdTrackerSettings();
+
+        // Show pending match if exists (even if newMatches is 0 - it might be from previous check)
+        if (data.pendingMatch) {
+          showPendingMatch(data.pendingMatch);
+        } else if (data.newMatches === 0) {
+          alert('No new matches found.');
+        }
+      } catch (e) {
+        console.error('Error checking tracker:', e);
+        alert('Failed to check tracker');
+        loadDbdTrackerSettings();
+      }
+    }
+
+    async function dbdToggleAutoPoll() {
+      const enabled = document.getElementById('dbd-auto-poll').checked;
+
+      try {
+        await fetch('http://localhost:8877/api/dbd/tracker/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ autoPolling: enabled })
+        });
+      } catch (e) {
+        console.error('Error toggling auto-poll:', e);
+      }
+    }
+
+    function showPendingMatch(match) {
+      dbdPendingMatch = match;
+
+      const container = document.getElementById('dbd-tracker-pending');
+      const killerEl = document.getElementById('dbd-pending-killer');
+      const statsEl = document.getElementById('dbd-pending-stats');
+
+      container.style.display = 'block';
+      killerEl.textContent = match.killerNameRaw || match.killerName;
+      statsEl.textContent = `${match.kills} kills | ${match.mapName || 'Unknown Map'} | ${match.gameMode || 'Regular'}`;
+    }
+
+    function hidePendingMatch() {
+      dbdPendingMatch = null;
+      document.getElementById('dbd-tracker-pending').style.display = 'none';
+    }
+
+    async function dbdApplyTrackerMatch() {
+      if (!dbdPendingMatch) return;
+
+      try {
+        const matchKillerName = dbdPendingMatch.killerName; // Save before hiding
+
+        const res = await fetch('http://localhost:8877/api/dbd/tracker/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            externalId: dbdPendingMatch.externalId,
+            killerName: dbdPendingMatch.killerName,
+            kills: dbdPendingMatch.kills
+          })
+        });
+        const data = await res.json();
+
+        if (data.applied) {
+          hidePendingMatch();
+          const net = data.netPoints;
+          alert(`Applied! ${matchKillerName}: ${net >= 0 ? '+' : ''}${net} net points`);
+          loadDbdState();
+        } else {
+          // Don't hide if not applied - user might retry
+          if (data.reason && data.reason.includes('already played')) {
+            hidePendingMatch(); // Only hide if killer was already played
+          }
+          alert(data.reason || 'Could not apply match');
+
+          if (data.suggestAdd) {
+            if (confirm(`Add "${data.killerName}" to the challenge roster?`)) {
+              document.getElementById('dbd-new-killer-name').value = data.killerName;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error applying match:', e);
+        alert('Failed to apply match');
+      }
+    }
+
+    async function dbdDismissTrackerMatch() {
+      if (!dbdPendingMatch) return;
+
+      try {
+        await fetch('http://localhost:8877/api/dbd/tracker/dismiss', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ externalId: dbdPendingMatch.externalId })
+        });
+        hidePendingMatch();
+      } catch (e) {
+        console.error('Error dismissing match:', e);
+      }
+    }
+
+    // Handle DBD WebSocket messages
+    const originalDbdHandler = handleMessage;
+    handleMessage = function(data) {
+      originalDbdHandler(data);
+
+      switch (data.type) {
+        case 'dbd-challenge-started':
+        case 'dbd-challenge-reset':
+        case 'dbd-challenge-ended':
+        case 'dbd-game-recorded':
+        case 'dbd-killer-selected':
+        case 'dbd-killer-promoted':
+          loadDbdState();
+          break;
+
+        case 'dbd-tracker-match':
+          // New match detected from tracker
+          showPendingMatch(data.data);
+          // Flash the DBD nav item or show notification
+          const navItem = document.querySelector('[data-page="dbd"]');
+          if (navItem) {
+            navItem.style.background = '#e94560';
+            setTimeout(() => { navItem.style.background = ''; }, 2000);
+          }
+          break;
+
+        case 'twitch-status':
+          updateTwitchStatus(data.data);
+          break;
+
+        case 'twitch-chat':
+          appendTwitchChat(data.data);
+          break;
+
+        case 'twitch-event':
+          appendTwitchEvent(data.data);
+          break;
+      }
+    };
+
+    // Load DBD state when switching to the page
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        if (this.dataset.page === 'dbd') {
+          loadDbdState();
+          loadDbdTrackerSettings();
+        }
+        if (this.dataset.page === 'twitch') {
+          loadTwitchStatus();
+          loadTwitchSettings();
+        }
+      });
+    });
+
+    // ========== TWITCH FUNCTIONS ==========
+    async function loadTwitchStatus() {
+      try {
+        const res = await fetch('http://localhost:8877/api/twitch/status');
+        const data = await res.json();
+        updateTwitchStatus(data);
+      } catch (e) {
+        console.error('Error loading Twitch status:', e);
+      }
+    }
+
+    async function loadTwitchSettings() {
+      try {
+        const res = await fetch('http://localhost:8877/api/twitch/settings');
+        const data = await res.json();
+
+        if (data.channel) {
+          document.getElementById('twitch-channel').value = data.channel;
+        }
+      } catch (e) {
+        console.error('Error loading Twitch settings:', e);
+      }
+    }
+
+    function updateTwitchStatus(data) {
+      const dot = document.getElementById('twitch-status-dot');
+      const text = document.getElementById('twitch-status-text');
+      const connBtn = document.getElementById('twitch-connect-btn');
+      const discBtn = document.getElementById('twitch-disconnect-btn');
+      const statusBox = document.getElementById('twitch-connection-status');
+
+      if (data.connected) {
+        dot.style.background = '#4caf50';
+        text.textContent = `Connected to #${data.channel}`;
+        connBtn.disabled = true;
+        discBtn.disabled = false;
+        statusBox.innerHTML = `
+          <div style="color:#4caf50;font-weight:bold;">Connected</div>
+          <div style="color:#aaa;font-size:13px;">Channel: #${data.channel}</div>
+          <div style="color:#888;font-size:12px;">User: ${data.username}</div>
+        `;
+      } else {
+        dot.style.background = '#e94560';
+        text.textContent = 'Disconnected';
+        connBtn.disabled = false;
+        discBtn.disabled = true;
+        statusBox.innerHTML = '<span style="color:#888;">Not connected</span>';
+      }
+    }
+
+    async function twitchSaveSettings() {
+      const channel = document.getElementById('twitch-channel').value.trim();
+      const clientId = document.getElementById('twitch-client-id').value.trim();
+      const clientSecret = document.getElementById('twitch-client-secret').value.trim();
+      const accessToken = document.getElementById('twitch-access-token').value.trim();
+      const refreshToken = document.getElementById('twitch-refresh-token').value.trim();
+
+      if (!channel) {
+        alert('Please enter a channel name');
+        return;
+      }
+
+      try {
+        await fetch('http://localhost:8877/api/twitch/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel, clientId, clientSecret, accessToken, refreshToken })
+        });
+
+        // Clear sensitive fields after saving
+        document.getElementById('twitch-client-secret').value = '';
+        document.getElementById('twitch-access-token').value = '';
+        document.getElementById('twitch-refresh-token').value = '';
+
+        alert('Settings saved! Click Connect to connect to Twitch.');
+      } catch (e) {
+        alert('Error saving settings: ' + e.message);
+      }
+    }
+
+    async function twitchConnect() {
+      const btn = document.getElementById('twitch-connect-btn');
+      btn.disabled = true;
+      btn.textContent = 'Connecting...';
+
+      try {
+        const res = await fetch('http://localhost:8877/api/twitch/connect', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.error) {
+          alert('Connection failed: ' + data.error);
+        } else {
+          // Status will be updated via WebSocket
+        }
+      } catch (e) {
+        alert('Connection error: ' + e.message);
+      }
+
+      btn.textContent = 'Connect';
+      loadTwitchStatus();
+    }
+
+    async function twitchDisconnect() {
+      try {
+        await fetch('http://localhost:8877/api/twitch/disconnect', { method: 'POST' });
+        loadTwitchStatus();
+      } catch (e) {
+        alert('Error disconnecting: ' + e.message);
+      }
+    }
+
+    async function twitchClearSettings() {
+      if (!confirm('Clear all Twitch credentials? You will need to re-enter them.')) return;
+
+      try {
+        await fetch('http://localhost:8877/api/twitch/clear', { method: 'POST' });
+        document.getElementById('twitch-channel').value = '';
+        document.getElementById('twitch-client-id').value = '';
+        loadTwitchStatus();
+        alert('Twitch settings cleared');
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function twitchSendMessage() {
+      const input = document.getElementById('twitch-message-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      try {
+        const res = await fetch('http://localhost:8877/api/twitch/say', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          input.value = '';
+        } else {
+          alert('Failed to send: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    function appendTwitchChat(msg) {
+      const log = document.getElementById('twitch-chat-log');
+      const countEl = document.getElementById('twitch-chat-count');
+
+      // Clear placeholder if present
+      if (log.querySelector('div[style*="text-align:center"]')) {
+        log.innerHTML = '';
+      }
+
+      const color = msg.color || '#9146FF';
+      const badges = [];
+      if (msg.isBroadcaster) badges.push('🎬');
+      if (msg.isMod) badges.push('⚔️');
+      if (msg.isVip) badges.push('💎');
+      if (msg.isSubscriber) badges.push('⭐');
+
+      const div = document.createElement('div');
+      div.style.cssText = 'margin-bottom:5px;word-wrap:break-word;';
+      div.innerHTML = `
+        <span style="color:#666;font-size:11px;">${badges.join('')}</span>
+        <span style="color:${color};font-weight:bold;">${msg.displayName}</span>
+        <span style="color:#ccc;">: ${escapeHtml(msg.message)}</span>
+      `;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+
+      // Keep last 100 messages
+      while (log.children.length > 100) {
+        log.removeChild(log.firstChild);
+      }
+
+      countEl.textContent = `(${log.children.length})`;
+    }
+
+    function appendTwitchEvent(event) {
+      const log = document.getElementById('twitch-event-log');
+      const countEl = document.getElementById('twitch-event-count');
+
+      // Clear placeholder if present
+      if (log.querySelector('div[style*="text-align:center"]')) {
+        log.innerHTML = '';
+      }
+
+      let icon = '📣';
+      let text = '';
+      const d = event.data;
+
+      switch (event.type) {
+        case 'follow':
+          icon = '❤️';
+          text = `<b>${d.displayName}</b> followed!`;
+          break;
+        case 'subscription':
+          icon = '⭐';
+          text = `<b>${d.displayName}</b> subscribed (${d.tier})!`;
+          break;
+        case 'subscription-gift':
+          icon = '🎁';
+          text = `<b>${d.displayName}</b> gifted ${d.amount} subs!`;
+          break;
+        case 'raid':
+          icon = '🚀';
+          text = `<b>${d.displayName}</b> raided with ${d.viewers} viewers!`;
+          break;
+        case 'cheer':
+          icon = '💎';
+          text = `<b>${d.displayName}</b> cheered ${d.bits} bits!`;
+          break;
+        case 'redemption':
+          icon = '🎯';
+          text = `<b>${d.displayName}</b> redeemed "${d.reward}"`;
+          break;
+        default:
+          text = `${event.type}: ${JSON.stringify(d)}`;
+      }
+
+      const div = document.createElement('div');
+      div.style.cssText = 'margin-bottom:8px;padding:6px;background:#1a1a2e;border-radius:4px;';
+      div.innerHTML = `
+        <span>${icon}</span>
+        <span style="color:#ccc;">${text}</span>
+        <div style="color:#555;font-size:10px;margin-top:2px;">${new Date(event.timestamp).toLocaleTimeString()}</div>
+      `;
+      log.insertBefore(div, log.firstChild);
+
+      // Keep last 50 events
+      while (log.children.length > 50) {
+        log.removeChild(log.lastChild);
+      }
+
+      countEl.textContent = `(${log.children.length})`;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Allow Enter key to send message
+    document.getElementById('twitch-message-input')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') twitchSendMessage();
+    });
+
+    // ==================== TICKER MESSAGES ====================
+    let tickerEditingId = null;
+
+    async function loadTickerMessages() {
+      try {
+        const res = await fetch('http://localhost:8877/api/ticker/messages');
+        const data = await res.json();
+        renderTickerMessages(data.messages || []);
+      } catch (e) {
+        console.error('Failed to load ticker messages:', e);
+        document.getElementById('ticker-messages-list').innerHTML = '<div class="empty-state">Failed to load messages</div>';
+      }
+    }
+
+    function renderTickerMessages(messages) {
+      const container = document.getElementById('ticker-messages-list');
+      if (!messages || messages.length === 0) {
+        container.innerHTML = '<div class="empty-state">No ticker messages. Add one above!</div>';
+        return;
+      }
+
+      container.innerHTML = messages.map(msg => `
+        <div class="alert-item" style="opacity: ${msg.enabled ? '1' : '0.5'};">
+          <div style="flex:1;">
+            <div style="margin-bottom:4px;">${escapeHtml(msg.text)}</div>
+            <div style="font-size:11px;color:#666;">ID: ${msg.id} • ${msg.enabled ? 'Enabled' : 'Disabled'}</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="toggleTicker(${msg.id}, ${!msg.enabled})" style="padding:6px 12px;font-size:12px;">
+              ${msg.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button class="btn btn-secondary" onclick="editTicker(${msg.id}, '${escapeHtml(msg.text).replace(/'/g, "\\'")}', ${msg.enabled})" style="padding:6px 12px;font-size:12px;">
+              Edit
+            </button>
+            <button class="btn btn-secondary" onclick="deleteTicker(${msg.id})" style="padding:6px 12px;font-size:12px;background:#c0392b;">
+              Delete
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showAddTicker() {
+      tickerEditingId = null;
+      document.getElementById('ticker-form-title').textContent = 'Add Message';
+      document.getElementById('ticker-message-text').value = '';
+      document.getElementById('ticker-message-enabled').checked = true;
+      document.getElementById('ticker-add-form').classList.remove('hidden');
+      document.getElementById('ticker-message-text').focus();
+    }
+
+    function editTicker(id, text, enabled) {
+      tickerEditingId = id;
+      document.getElementById('ticker-form-title').textContent = 'Edit Message';
+      document.getElementById('ticker-message-text').value = text;
+      document.getElementById('ticker-message-enabled').checked = enabled;
+      document.getElementById('ticker-add-form').classList.remove('hidden');
+      document.getElementById('ticker-message-text').focus();
+    }
+
+    function cancelTicker() {
+      tickerEditingId = null;
+      document.getElementById('ticker-add-form').classList.add('hidden');
+    }
+
+    async function saveTicker() {
+      const text = document.getElementById('ticker-message-text').value.trim();
+      const enabled = document.getElementById('ticker-message-enabled').checked;
+
+      if (!text) {
+        alert('Please enter a message');
+        return;
+      }
+
+      try {
+        if (tickerEditingId) {
+          // Update existing
+          await fetch(`http://localhost:8877/api/ticker/messages/${tickerEditingId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, enabled })
+          });
+        } else {
+          // Create new
+          await fetch('http://localhost:8877/api/ticker/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, enabled })
+          });
+        }
+        cancelTicker();
+        loadTickerMessages();
+      } catch (e) {
+        console.error('Failed to save ticker message:', e);
+        alert('Failed to save message');
+      }
+    }
+
+    async function toggleTicker(id, enabled) {
+      try {
+        await fetch(`http://localhost:8877/api/ticker/messages/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+        loadTickerMessages();
+      } catch (e) {
+        console.error('Failed to toggle ticker message:', e);
+      }
+    }
+
+    async function deleteTicker(id) {
+      if (!confirm('Delete this ticker message?')) return;
+
+      try {
+        await fetch(`http://localhost:8877/api/ticker/messages/${id}`, {
+          method: 'DELETE'
+        });
+        loadTickerMessages();
+      } catch (e) {
+        console.error('Failed to delete ticker message:', e);
+      }
+    }
+
+    // ========== COMMANDS MANAGEMENT ==========
+    let commandsList = [];
+    let commandSettings = {
+      enabled: true,
+      permissions: {
+        sound: 'mods',
+        sfx: 'everyone',
+        alert: 'mods'
+      }
+    };
+    let editingCommandId = null;
+
+    async function loadCommands() {
+      try {
+        const res = await fetch('http://localhost:8877/api/commands');
+        const data = await res.json();
+        commandsList = data.commands || [];
+        commandSettings = data.settings || commandSettings;
+        renderCommands();
+        updateCommandSettingsUI();
+        populateCommandSoundSelect();
+      } catch (e) {
+        console.error('Failed to load commands:', e);
+        renderCommands();
+      }
+    }
+
+    function updateCommandSettingsUI() {
+      document.getElementById('commands-enabled').checked = commandSettings.enabled;
+      document.getElementById('perm-sound').value = commandSettings.permissions?.sound || 'mods';
+      document.getElementById('perm-sfx').value = commandSettings.permissions?.sfx || 'everyone';
+    }
+
+    async function populateCommandSoundSelect() {
+      try {
+        const res = await fetch('http://localhost:8877/api/sounds');
+        const data = await res.json();
+        const select = document.getElementById('cmd-value');
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">Select a sound...</option>' +
+          (data.sounds || []).map(s => `<option value="${s}">${s}</option>`).join('');
+        if (currentVal) select.value = currentVal;
+      } catch (e) {
+        console.error('Failed to load sounds for command select:', e);
+      }
+    }
+
+    function updateActionValueField() {
+      const action = document.getElementById('cmd-action').value;
+      const label = document.getElementById('cmd-value-label');
+      const select = document.getElementById('cmd-value');
+
+      if (action === 'sound') {
+        label.textContent = 'Sound File';
+        populateCommandSoundSelect();
+      } else if (action === 'alert') {
+        label.textContent = 'Alert Type';
+        select.innerHTML = `
+          <option value="follow">Follow</option>
+          <option value="subscription">Subscription</option>
+          <option value="raid">Raid</option>
+          <option value="cheer">Cheer/Bits</option>
+          <option value="gift">Gift Sub</option>
+        `;
+      }
+    }
+
+    function getMatchTypeLabel(type) {
+      switch(type) {
+        case 'exact': return 'Exact';
+        case 'startswith': return 'Starts with';
+        case 'contains': return 'Contains';
+        default: return type;
+      }
+    }
+
+    function renderCommands() {
+      const container = document.getElementById('commands-list');
+      if (commandsList.length === 0) {
+        container.innerHTML = `<div class="empty-state">No custom commands yet. Add one above!</div>`;
+        return;
+      }
+      container.innerHTML = commandsList.map(cmd => `
+        <div class="alert-item" style="flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <strong style="color:#e94560;">${cmd.trigger || cmd.name}</strong>
+            <span style="color:#666;margin-left:8px;font-size:11px;">[${getMatchTypeLabel(cmd.matchType || 'startswith')}]</span>
+            <div style="color:#888;font-size:12px;margin-top:4px;">
+              ${cmd.action === 'sound' ? '🔊' : '🔔'} ${cmd.action}: <code>${cmd.value}</code>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:11px;color:#888;background:#0f3460;padding:3px 8px;border-radius:4px;">${cmd.permission || 'everyone'}</span>
+            <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="editCommandInForm('${cmd.id}')">Edit</button>
+            <button class="btn" style="padding:5px 10px;font-size:12px;background:#c0392b;" onclick="deleteCommand('${cmd.id}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function saveCommandSettings() {
+      commandSettings.enabled = document.getElementById('commands-enabled').checked;
+      commandSettings.permissions = {
+        sound: document.getElementById('perm-sound').value,
+        sfx: document.getElementById('perm-sfx').value
+      };
+
+      try {
+        await fetch('http://localhost:8877/api/commands/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(commandSettings)
+        });
+      } catch (e) {
+        console.error('Failed to save command settings:', e);
+      }
+    }
+
+    function clearCommandForm() {
+      document.getElementById('cmd-trigger').value = '';
+      document.getElementById('cmd-match-type').value = 'startswith';
+      document.getElementById('cmd-action').value = 'sound';
+      document.getElementById('cmd-value').value = '';
+      document.getElementById('cmd-permission').value = 'everyone';
+      editingCommandId = null;
+      updateActionValueField();
+    }
+
+    function editCommandInForm(id) {
+      const cmd = commandsList.find(c => c.id === id);
+      if (!cmd) return;
+
+      document.getElementById('cmd-trigger').value = cmd.trigger || cmd.name || '';
+      document.getElementById('cmd-match-type').value = cmd.matchType || 'startswith';
+      document.getElementById('cmd-action').value = cmd.action || 'sound';
+      updateActionValueField();
+      setTimeout(() => {
+        document.getElementById('cmd-value').value = cmd.value || '';
+      }, 100);
+      document.getElementById('cmd-permission').value = cmd.permission || 'everyone';
+      editingCommandId = id;
+
+      // Scroll to form
+      document.getElementById('cmd-trigger').focus();
+    }
+
+    async function saveCommand() {
+      const trigger = document.getElementById('cmd-trigger').value.trim();
+      const matchType = document.getElementById('cmd-match-type').value;
+      const action = document.getElementById('cmd-action').value;
+      const value = document.getElementById('cmd-value').value;
+      const permission = document.getElementById('cmd-permission').value;
+
+      if (!trigger) {
+        alert('Please enter a trigger text');
+        return;
+      }
+      if (!value) {
+        alert('Please select an action value');
+        return;
+      }
+
+      const cmd = { trigger, matchType, action, value, permission };
+
+      try {
+        if (editingCommandId) {
+          await fetch(`http://localhost:8877/api/commands/${editingCommandId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cmd)
+          });
+        } else {
+          await fetch('http://localhost:8877/api/commands', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cmd)
+          });
+        }
+        clearCommandForm();
+        loadCommands();
+      } catch (e) {
+        console.error('Failed to save command:', e);
+        alert('Failed to save command');
+      }
+    }
+
+    async function deleteCommand(id) {
+      if (!confirm('Delete this command?')) return;
+      try {
+        await fetch(`http://localhost:8877/api/commands/${id}`, { method: 'DELETE' });
+        loadCommands();
+      } catch (e) {
+        console.error('Failed to delete command:', e);
+      }
+    }
+
+    // ========== SOUNDS MANAGEMENT ==========
+    let soundsList = [];
+    let alertSoundSettings = {
+      follow: '',
+      subscription: '',
+      raid: '',
+      cheer: '',
+      gift: '',
+      volume: 70
+    };
+
+    async function loadSounds() {
+      try {
+        const res = await fetch('http://localhost:8877/api/sounds');
+        const data = await res.json();
+        soundsList = data.sounds || [];
+        renderSounds();
+        populateSoundSelects();
+      } catch (e) {
+        console.error('Failed to load sounds:', e);
+        soundsList = [];
+        renderSounds();
+      }
+    }
+
+    async function loadAlertSoundSettings() {
+      try {
+        const res = await fetch('http://localhost:8877/api/sounds/alerts');
+        const data = await res.json();
+        alertSoundSettings = data.settings || alertSoundSettings;
+        updateAlertSoundUI();
+      } catch (e) {
+        console.error('Failed to load alert sound settings:', e);
+      }
+    }
+
+    function updateAlertSoundUI() {
+      document.getElementById('sound-follow').value = alertSoundSettings.follow || '';
+      document.getElementById('sound-subscription').value = alertSoundSettings.subscription || '';
+      document.getElementById('sound-raid').value = alertSoundSettings.raid || '';
+      document.getElementById('sound-cheer').value = alertSoundSettings.cheer || '';
+      document.getElementById('sound-gift').value = alertSoundSettings.gift || '';
+      document.getElementById('alert-volume').value = alertSoundSettings.volume || 70;
+      document.getElementById('volume-display').textContent = (alertSoundSettings.volume || 70) + '%';
+    }
+
+    function populateSoundSelects() {
+      const selects = ['sound-follow', 'sound-subscription', 'sound-raid', 'sound-cheer', 'sound-gift'];
+      selects.forEach(id => {
+        const select = document.getElementById(id);
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">No sound</option>' +
+          soundsList.map(s => `<option value="${s}">${s}</option>`).join('');
+        select.value = currentVal;
+      });
+      updateAlertSoundUI();
+    }
+
+    function renderSounds() {
+      const container = document.getElementById('sounds-list');
+      if (soundsList.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No sound files yet</p>
+            <p style="font-size:12px;color:#666;margin-top:8px;">Upload .mp3, .wav, or .ogg files</p>
+          </div>
+        `;
+        return;
+      }
+      container.innerHTML = soundsList.map(sound => `
+        <div class="alert-item">
+          <div>
+            <span style="font-family:monospace;">${sound}</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="previewSound('${sound}')">▶ Play</button>
+            <button class="btn" style="padding:5px 10px;font-size:12px;background:#c0392b;" onclick="deleteSound('${sound}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function saveAlertSounds() {
+      alertSoundSettings = {
+        follow: document.getElementById('sound-follow').value,
+        subscription: document.getElementById('sound-subscription').value,
+        raid: document.getElementById('sound-raid').value,
+        cheer: document.getElementById('sound-cheer').value,
+        gift: document.getElementById('sound-gift').value,
+        volume: parseInt(document.getElementById('alert-volume').value)
+      };
+      document.getElementById('volume-display').textContent = alertSoundSettings.volume + '%';
+
+      try {
+        await fetch('http://localhost:8877/api/sounds/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settings: alertSoundSettings })
+        });
+      } catch (e) {
+        console.error('Failed to save alert sound settings:', e);
+      }
+    }
+
+    async function uploadSoundFiles(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('sounds', files[i]);
+      }
+
+      try {
+        const res = await fetch('http://localhost:8877/api/sounds/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadSounds();
+        } else {
+          alert('Failed to upload: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        console.error('Failed to upload sounds:', e);
+        alert('Failed to upload sounds: ' + e.message);
+      }
+
+      event.target.value = '';
+    }
+
+    async function previewSound(sound) {
+      try {
+        await fetch('http://localhost:8877/api/trigger/sound', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sound })
+        });
+      } catch (e) {
+        console.error('Failed to preview sound:', e);
+      }
+    }
+
+    async function deleteSound(sound) {
+      if (!confirm(`Delete ${sound}?`)) return;
+      try {
+        await fetch(`http://localhost:8877/api/sounds/${encodeURIComponent(sound)}`, {
+          method: 'DELETE'
+        });
+        loadSounds();
+      } catch (e) {
+        console.error('Failed to delete sound:', e);
+      }
+    }
+
+    function openSoundsFolder() {
+      ipcRenderer.invoke('open-sounds-folder');
+    }
+
+    // Load commands and sounds when page changes
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const originalClick = item.onclick;
+      item.addEventListener('click', () => {
+        const page = item.dataset.page;
+        if (page === 'commands') loadCommands();
+        if (page === 'sounds') { loadSounds(); loadAlertSoundSettings(); }
+      });
+    });
+
+    // Initialize
+    connectWebSocket();
+  </script>
+</body>
+</html>

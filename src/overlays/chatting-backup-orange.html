@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatting Overlay</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: 'Poppins', sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+
+    .scale-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+      transition: transform 0.2s ease;
+    }
+
+    .overlay-container {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      background: linear-gradient(135deg, #000 0%, #0a0a0a 50%, #111 100%);
+    }
+
+    .scale-indicator {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(255, 140, 0, 0.9);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      color: #000;
+    }
+    .scale-indicator.visible { opacity: 1; }
+
+    /* Particles */
+    .particles {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .particle {
+      position: absolute;
+      width: 4px; height: 4px;
+      background: rgba(255, 140, 0, 0.5);
+      border-radius: 50%;
+      animation: float 15s infinite ease-in-out;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+    }
+
+    /* ===== LEFT SIDE ===== */
+
+    .game-area {
+      position: absolute;
+      top: 60px;
+      left: 60px;
+      width: 1024px;
+      height: 576px;
+      background: #000;
+      border-radius: 16px;
+      border: 3px solid transparent;
+      background-clip: padding-box;
+      overflow: hidden;
+      box-shadow: 0 0 50px rgba(255, 140, 0, 0.2);
+    }
+    .game-area::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      background: linear-gradient(135deg, #FF8C00, #FFD700, #FF8C00);
+      border-radius: 19px;
+      z-index: -1;
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+    @keyframes borderGlow {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* Goals - Bottom right, under supporters card, next to ticker */
+    .goals-section {
+      position: absolute;
+      bottom: 20px;
+      left: 1104px;
+      right: 60px;
+      animation: slideInUp 0.6s ease-out 0.2s both;
+    }
+    @keyframes slideInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .goals-card {
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 16px 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+    }
+    .goals-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFD700;
+      margin-bottom: 14px;
+    }
+    .goals-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .goal-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .goal-label { color: #999; }
+    .goal-value { font-weight: 700; color: #FFD700; }
+    .goal-bar {
+      height: 12px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .goal-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #FF8C00, #FFD700);
+      border-radius: 6px;
+      transition: width 1s ease-out;
+      position: relative;
+    }
+    .goal-progress::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* DBD Stats Section - Middle */
+    .dbd-stats-section {
+      position: absolute;
+      top: 60px;
+      left: 1110px;
+      width: 360px;
+      animation: slideInUp 0.6s ease-out 0.3s both;
+    }
+    .dbd-stats-card {
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+    }
+    .dbd-stats-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFD700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dbd-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .dbd-stat-item {
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .dbd-stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFD700;
+      line-height: 1;
+    }
+    .dbd-stat-label {
+      font-size: 10px;
+      color: #888;
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .dbd-current-killer {
+      margin-top: 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dbd-killer-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #9b59b6, #8e44ad);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .dbd-killer-info {
+      flex: 1;
+    }
+    .dbd-killer-label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .dbd-killer-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* Event items for activity panel */
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .event-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .event-icon.follow { background: linear-gradient(135deg, #FF8C00, #FFD700); }
+    .event-icon.subscription { background: linear-gradient(135deg, #00cc66, #00aa55); }
+    .event-icon.raid { background: linear-gradient(135deg, #ff6600, #ff8533); }
+    .event-icon.cheer { background: linear-gradient(135deg, #FFD700, #FFA500); }
+    .event-icon.gift { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+    .event-text { font-size: 12px; flex: 1; }
+    .event-text strong { color: #FFD700; }
+    .event-time { font-size: 10px; color: #666; }
+
+    /* ===== RIGHT SIDE ===== */
+
+    .right-column {
+      position: absolute;
+      top: 60px;
+      right: 60px;
+      bottom: 140px;
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: slideInRight 0.6s ease-out;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(40px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Streamer Card - Compact */
+    .streamer-card {
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 16px;
+      padding: 20px;
+      border: 2px solid rgba(255, 140, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .avatar-container { position: relative; flex-shrink: 0; }
+    .avatar {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: 3px solid #FF8C00;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.6); }
+      50% { box-shadow: 0 0 15px 8px rgba(255, 140, 0, 0); }
+    }
+    .live-badge {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      background: #ff4444;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 700;
+      animation: livePulse 1s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .streamer-info { flex: 1; }
+    .streamer-info h2 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #FFD700, #FF8C00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .streamer-game {
+      font-size: 12px;
+      color: #FF8C00;
+      font-weight: 500;
+    }
+
+    /* Cycling Supporters Card */
+    .supporters-card {
+      flex: 1;
+      background: rgba(15, 15, 15, 0.95);
+      border-radius: 14px;
+      padding: 20px;
+      border: 1px solid rgba(255, 140, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .supporters-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .supporters-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #FFD700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tab-indicators {
+      display: flex;
+      gap: 6px;
+    }
+    .tab-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 140, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+    .tab-dot.active {
+      background: #FFD700;
+      width: 20px;
+      border-radius: 4px;
+    }
+
+    .supporters-content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    .supporters-panel {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all 0.4s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .supporters-panel.active {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .supporters-panel.exit {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+
+    .supporter-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 10px;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+    .supporter-item:hover {
+      transform: translateX(5px);
+    }
+    .supporter-rank {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .supporter-rank.gold { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
+    .supporter-rank.silver { background: linear-gradient(135deg, #C0C0C0, #A8A8A8); color: #000; }
+    .supporter-rank.bronze { background: linear-gradient(135deg, #CD7F32, #B87333); color: #000; }
+    .supporter-rank.normal { background: rgba(255, 140, 0, 0.3); color: #FFD700; }
+
+    .supporter-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .supporter-icon.sub { background: linear-gradient(135deg, #FF8C00, #FFD700); }
+    .supporter-icon.follow { background: linear-gradient(135deg, #4a4a4a, #666); }
+    .supporter-icon.gift { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+
+    .supporter-info { flex: 1; min-width: 0; }
+    .supporter-name {
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .supporter-detail {
+      font-size: 11px;
+      color: #888;
+    }
+    .supporter-badge {
+      background: linear-gradient(135deg, #FF8C00, #FFD700);
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    /* ===== BOTTOM TICKER ===== */
+    .ticker-section {
+      position: absolute;
+      bottom: 20px;
+      left: 60px;
+      width: 1024px;
+      height: 44px;
+      background: rgba(255, 140, 0, 0.1);
+      border-radius: 22px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      border: 1px solid rgba(255, 140, 0, 0.25);
+    }
+    .ticker-label {
+      background: linear-gradient(135deg, #FF8C00, #FFD700);
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      color: #000;
+    }
+    .ticker-content {
+      flex: 1;
+      overflow: hidden;
+      padding: 0 24px;
+      position: relative;
+    }
+    .ticker-message {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      animation: tickerFade 6s ease-in-out infinite;
+    }
+    @keyframes tickerFade {
+      0% { opacity: 0; transform: translateY(10px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-10px); }
+    }
+    .ticker-message .highlight { color: #FFD700; font-weight: 700; }
+    .ticker-message .emoji { margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <div class="scale-wrapper" id="scale-wrapper">
+  <div class="overlay-container">
+    <div class="particles" id="particles"></div>
+
+    <!-- LEFT SIDE -->
+    <div class="game-area"></div>
+
+    <!-- DBD Stats - Between game and right column -->
+    <div class="dbd-stats-section" id="dbd-stats-section" style="display: none;">
+      <div class="dbd-stats-card">
+        <div class="dbd-stats-header">🎮 DBD Challenge</div>
+        <div class="dbd-stats-grid">
+          <div class="dbd-stat-item">
+            <div class="dbd-stat-value" id="dbd-points">0</div>
+            <div class="dbd-stat-label">Points</div>
+          </div>
+          <div class="dbd-stat-item">
+            <div class="dbd-stat-value" id="dbd-games">0</div>
+            <div class="dbd-stat-label">Games</div>
+          </div>
+          <div class="dbd-stat-item">
+            <div class="dbd-stat-value" id="dbd-kills">0</div>
+            <div class="dbd-stat-label">Total Kills</div>
+          </div>
+          <div class="dbd-stat-item">
+            <div class="dbd-stat-value" id="dbd-remaining">0</div>
+            <div class="dbd-stat-label">Killers Left</div>
+          </div>
+        </div>
+        <div class="dbd-current-killer" id="dbd-current-killer" style="display: none;">
+          <div class="dbd-killer-icon">🔪</div>
+          <div class="dbd-killer-info">
+            <div class="dbd-killer-label">Now Playing</div>
+            <div class="dbd-killer-name" id="dbd-killer-name">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goals - Bottom Right -->
+    <div class="goals-section">
+      <div class="goals-card">
+        <div class="goals-header">🎯 Community Goals</div>
+        <div class="goals-grid">
+          <div class="goal-item">
+            <div class="goal-info">
+              <span class="goal-label">Follower Goal</span>
+              <span class="goal-value"><span id="follower-current">0</span> / <span id="follower-goal">1500</span></span>
+            </div>
+            <div class="goal-bar">
+              <div class="goal-progress" id="follower-progress" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="goal-item">
+            <div class="goal-info">
+              <span class="goal-label">Subscriber Goal</span>
+              <span class="goal-value"><span id="sub-current">0</span> / <span id="sub-goal-val">10</span></span>
+            </div>
+            <div class="goal-bar">
+              <div class="goal-progress" id="sub-progress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="right-column">
+      <div class="streamer-card">
+        <div class="avatar-container">
+          <img class="avatar" id="avatar" src="" alt="">
+          <div class="live-badge">LIVE</div>
+        </div>
+        <div class="streamer-info">
+          <h2 id="streamer-name">Loading...</h2>
+          <div class="streamer-game" id="current-game">-</div>
+        </div>
+      </div>
+
+      <div class="supporters-card">
+        <div class="supporters-header">
+          <div class="supporters-title" id="supporters-title">⭐ Recent Subscribers</div>
+          <div class="tab-indicators" id="tab-indicators">
+            <div class="tab-dot active" data-tab="0"></div>
+            <div class="tab-dot" data-tab="1"></div>
+            <div class="tab-dot" data-tab="2"></div>
+            <div class="tab-dot" data-tab="3" id="activity-tab-dot" style="display: none;"></div>
+          </div>
+        </div>
+        <div class="supporters-content">
+          <!-- Panel 1: Recent Subscribers -->
+          <div class="supporters-panel active" id="panel-subs"></div>
+          <!-- Panel 2: Recent Followers -->
+          <div class="supporters-panel" id="panel-follows"></div>
+          <!-- Panel 3: Top Gifters -->
+          <div class="supporters-panel" id="panel-gifters"></div>
+          <!-- Panel 4: Live Activity (only shows when events exist) -->
+          <div class="supporters-panel" id="panel-activity"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM TICKER -->
+    <div class="ticker-section">
+      <div class="ticker-label" id="ticker-label">INFO</div>
+      <div class="ticker-content">
+        <div class="ticker-message" id="ticker-message">Loading...</div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="scale-indicator" id="scale-indicator">100%</div>
+
+  <script>
+    const DESIGN_WIDTH = 1920;
+    const DESIGN_HEIGHT = 1080;
+
+    function updateScale() {
+      const wrapper = document.getElementById('scale-wrapper');
+      const indicator = document.getElementById('scale-indicator');
+      const isOBS = window.obsstudio || (window.innerWidth === DESIGN_WIDTH && window.innerHeight === DESIGN_HEIGHT);
+
+      if (isOBS) {
+        wrapper.style.transform = 'scale(1)';
+        wrapper.style.left = '0';
+        wrapper.style.top = '0';
+        indicator.classList.remove('visible');
+        return;
+      }
+
+      const scaleX = window.innerWidth / DESIGN_WIDTH;
+      const scaleY = window.innerHeight / DESIGN_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
+
+      wrapper.style.transform = `scale(${scale})`;
+      indicator.textContent = `${Math.round(scale * 100)}%`;
+      indicator.classList.add('visible');
+
+      const offsetX = (window.innerWidth - DESIGN_WIDTH * scale) / 2;
+      const offsetY = (window.innerHeight - DESIGN_HEIGHT * scale) / 2;
+      wrapper.style.left = offsetX + 'px';
+      wrapper.style.top = offsetY + 'px';
+    }
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
+
+    const API_BASE = 'https://stream.soupymediagroup.com';
+    const WS_URL = 'wss://stream.soupymediagroup.com/ws';
+    const GOALS = { followers: 1500, subs: 10 };
+    const CYCLE_INTERVAL = 8000; // 8 seconds per tab
+
+    let ws = null;
+    let currentTab = 0;
+    let recentFollowers = [];
+    let recentSubs = [];
+    let topGifters = [];
+    let recentEvents = [];
+    let tickerMessages = [];
+    let currentTickerIndex = 0;
+    let tickerInterval = null;
+    let dbdChallengeState = null;
+
+    const tabConfig = [
+      { id: 'subs', title: '⭐ Recent Subscribers', icon: 'sub' },
+      { id: 'follows', title: '👋 Recent Followers', icon: 'follow' },
+      { id: 'gifters', title: '🎁 Top Gifters', icon: 'gift' },
+      { id: 'activity', title: '🔔 Live Activity', icon: 'activity', conditional: true }
+    ];
+
+    function createParticles() {
+      const container = document.getElementById('particles');
+      for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 100 + '%';
+        particle.style.animationDelay = Math.random() * 15 + 's';
+        particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+        container.appendChild(particle);
+      }
+    }
+
+    function connectWebSocket() {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => console.log('Connected');
+      ws.onclose = () => setTimeout(connectWebSocket, 3000);
+      ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+    }
+
+    function handleMessage(data) {
+      if (data.type === 'twitch-event') addEvent(data.data);
+      if (data.type === 'top-gifters-update') {
+        topGifters = data.data.map(g => ({
+          name: g.name,
+          total: g.totalGifts
+        }));
+        renderPanels();
+      }
+      if (data.type === 'followers-update') {
+        recentFollowers = data.data.map(f => ({
+          name: f.name,
+          time: new Date(f.timestamp)
+        }));
+        renderPanels();
+        updateTicker();
+      }
+      if (data.type === 'subs-update') {
+        recentSubs = data.data.map(s => ({
+          name: s.name,
+          tier: s.tier,
+          time: new Date(s.timestamp)
+        }));
+        renderPanels();
+      }
+      // Handle DBD Challenge updates
+      if (data.type === 'init' && data.data.dbdChallenge) {
+        updateDbdStats(data.data.dbdChallenge);
+      }
+      if (data.type === 'dbd-challenge-started' || data.type === 'dbd-game-recorded' || data.type === 'dbd-killer-selected') {
+        loadDbdState();
+      }
+    }
+
+    function addEvent(event) {
+      const icons = { follow: '👋', subscription: '⭐', raid: '🎉', cheer: '💎', gift: '🎁' };
+      let text = '';
+      let userName = '';
+
+      switch(event.type) {
+        case 'follow':
+          userName = event.data.displayName;
+          text = `<strong>${userName}</strong> followed!`;
+          recentFollowers.unshift({ name: userName, time: new Date() });
+          recentFollowers = recentFollowers.slice(0, 10);
+          updateTicker();
+          break;
+        case 'subscription':
+          userName = event.data.displayName;
+          text = `<strong>${userName}</strong> subscribed!`;
+          recentSubs.unshift({
+            name: userName,
+            tier: event.data.tier || '1000',
+            time: new Date()
+          });
+          recentSubs = recentSubs.slice(0, 10);
+          break;
+        case 'gift':
+          userName = event.data.gifterDisplayName || event.data.displayName;
+          const existing = topGifters.find(g => g.name === userName);
+          if (existing) {
+            existing.total += event.data.total || 1;
+          } else {
+            topGifters.push({ name: userName, total: event.data.total || 1 });
+          }
+          topGifters.sort((a, b) => b.total - a.total);
+          topGifters = topGifters.slice(0, 10);
+          text = `<strong>${userName}</strong> gifted ${event.data.total || 1} sub(s)!`;
+          break;
+        case 'raid':
+          userName = event.data.user;
+          text = `<strong>${userName}</strong> raided with ${event.data.viewers}!`;
+          break;
+        case 'cheer':
+          userName = event.data.user;
+          text = `<strong>${userName}</strong> cheered ${event.data.bits} bits!`;
+          break;
+        default: return;
+      }
+
+      // Add to recent events for activity panel
+      recentEvents.unshift({
+        type: event.type,
+        text: text,
+        icon: icons[event.type] || '📢',
+        time: new Date()
+      });
+      recentEvents = recentEvents.slice(0, 10);
+
+      // Update activity tab visibility
+      updateActivityTabVisibility();
+      renderPanels();
+    }
+
+    function renderPanels() {
+      const MAX_ITEMS = 10;
+
+      // Render Subscribers panel
+      const subsPanel = document.getElementById('panel-subs');
+      if (recentSubs.length > 0) {
+        subsPanel.innerHTML = recentSubs.slice(0, MAX_ITEMS).map(s => {
+          const tierNum = s.tier === '3000' ? '3' : s.tier === '2000' ? '2' : '1';
+          const months = s.cumulativeMonths || s.months || 0;
+          const monthsText = months > 0 ? `${months} mo` : '';
+          return `
+            <div class="supporter-item">
+              <div class="supporter-icon sub">⭐</div>
+              <div class="supporter-info">
+                <div class="supporter-name">${s.name}</div>
+                <div class="supporter-detail">Tier ${tierNum}${monthsText ? ' • ' + monthsText : ''}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        subsPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon sub">⭐</div><div class="supporter-info"><div class="supporter-name">No recent subs</div></div></div>';
+      }
+
+      // Render Followers panel
+      const followsPanel = document.getElementById('panel-follows');
+      if (recentFollowers.length > 0) {
+        followsPanel.innerHTML = recentFollowers.slice(0, MAX_ITEMS).map(f => `
+          <div class="supporter-item">
+            <div class="supporter-icon follow">👋</div>
+            <div class="supporter-info">
+              <div class="supporter-name">${f.name}</div>
+              <div class="supporter-detail">Follower</div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        followsPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon follow">👋</div><div class="supporter-info"><div class="supporter-name">No recent followers</div></div></div>';
+      }
+
+      // Render Top Gifters panel
+      const giftersPanel = document.getElementById('panel-gifters');
+      if (topGifters.length > 0) {
+        giftersPanel.innerHTML = topGifters.slice(0, MAX_ITEMS).map((g, i) => {
+          const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+          return `
+            <div class="supporter-item">
+              <div class="supporter-rank ${rankClass}">${i + 1}</div>
+              <div class="supporter-info">
+                <div class="supporter-name">${g.name}</div>
+                <div class="supporter-detail">Top Gifter</div>
+              </div>
+              <div class="supporter-badge">${g.total} Gifted</div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        giftersPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon gift">🎁</div><div class="supporter-info"><div class="supporter-name">No gifters yet</div></div></div>';
+      }
+
+      // Render Live Activity panel
+      const activityPanel = document.getElementById('panel-activity');
+      if (recentEvents.length > 0) {
+        activityPanel.innerHTML = recentEvents.slice(0, MAX_ITEMS).map(e => {
+          const timeAgo = getTimeAgo(e.time);
+          return `
+            <div class="event-item">
+              <div class="event-icon ${e.type}">${e.icon}</div>
+              <div class="event-text">${e.text}</div>
+              <div class="event-time">${timeAgo}</div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        activityPanel.innerHTML = '<div class="supporter-item"><div class="supporter-icon follow">🔔</div><div class="supporter-info"><div class="supporter-name">No recent activity</div></div></div>';
+      }
+    }
+
+    function getTimeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      if (seconds < 60) return 'just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h ago`;
+    }
+
+    function updateActivityTabVisibility() {
+      const activityDot = document.getElementById('activity-tab-dot');
+      if (recentEvents.length > 0) {
+        activityDot.style.display = 'block';
+      } else {
+        activityDot.style.display = 'none';
+      }
+    }
+
+    function getActiveTabs() {
+      // Return indices of active tabs (skip activity tab if no events)
+      const activeTabs = [0, 1, 2]; // subs, follows, gifters always active
+      if (recentEvents.length > 0) {
+        activeTabs.push(3); // activity tab
+      }
+      return activeTabs;
+    }
+
+    function cycleTab() {
+      const panels = document.querySelectorAll('.supporters-panel');
+      const dots = document.querySelectorAll('.tab-dot');
+      const title = document.getElementById('supporters-title');
+      const activeTabs = getActiveTabs();
+
+      // Exit current panel
+      panels[currentTab].classList.remove('active');
+      panels[currentTab].classList.add('exit');
+      dots[currentTab].classList.remove('active');
+
+      // Find next active tab
+      const currentIndex = activeTabs.indexOf(currentTab);
+      const nextIndex = (currentIndex + 1) % activeTabs.length;
+      currentTab = activeTabs[nextIndex];
+
+      // Update title
+      title.textContent = tabConfig[currentTab].title;
+
+      // Enter new panel after brief delay
+      setTimeout(() => {
+        panels.forEach(p => p.classList.remove('exit'));
+        panels[currentTab].classList.add('active');
+        dots[currentTab].classList.add('active');
+      }, 100);
+    }
+
+    // DBD Stats Functions
+    async function loadDbdState() {
+      try {
+        const res = await fetch(`${API_BASE}/api/dbd/state`);
+        const data = await res.json();
+        updateDbdStats(data);
+      } catch (e) {
+        console.error('Failed to load DBD state:', e);
+      }
+    }
+
+    function updateDbdStats(state) {
+      dbdChallengeState = state;
+      const section = document.getElementById('dbd-stats-section');
+
+      if (!state || !state.active) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+
+      // Update stats
+      document.getElementById('dbd-points').textContent = state.currentPoints || 0;
+      document.getElementById('dbd-games').textContent = state.gamesPlayed || 0;
+      document.getElementById('dbd-kills').textContent = state.totalKills || 0;
+
+      // Calculate remaining killers
+      const killers = state.killers || {};
+      const remaining = Object.values(killers).filter(k => !k.played).length;
+      document.getElementById('dbd-remaining').textContent = remaining;
+
+      // Current killer
+      const currentKillerEl = document.getElementById('dbd-current-killer');
+      if (state.currentKiller) {
+        currentKillerEl.style.display = 'flex';
+        document.getElementById('dbd-killer-name').textContent = state.currentKiller;
+      } else {
+        currentKillerEl.style.display = 'none';
+      }
+    }
+
+    async function loadChannelInfo() {
+      try {
+        const res = await fetch(`${API_BASE}/api/twitch/channel-info`);
+        const data = await res.json();
+
+        document.getElementById('streamer-name').textContent = data.displayName;
+        document.getElementById('current-game').textContent = data.gameName || 'Just Chatting';
+        document.getElementById('avatar').src = data.profilePictureUrl;
+        document.getElementById('follower-current').textContent = data.followerCount.toLocaleString();
+
+        const pct = Math.min((data.followerCount / GOALS.followers) * 100, 100);
+        document.getElementById('follower-progress').style.width = pct + '%';
+      } catch (e) {
+        console.error('Failed to load channel info:', e);
+      }
+    }
+
+    async function loadSubInfo() {
+      try {
+        const res = await fetch(`${API_BASE}/api/twitch/subscribers`);
+        const data = await res.json();
+
+        document.getElementById('sub-current').textContent = data.total;
+
+        const pct = Math.min((data.total / GOALS.subs) * 100, 100);
+        document.getElementById('sub-progress').style.width = pct + '%';
+      } catch (e) {
+        console.error('Failed to load sub info:', e);
+      }
+    }
+
+    async function loadFollowers() {
+      try {
+        // Load from historical data first
+        const res = await fetch(`${API_BASE}/api/twitch/recent-followers?limit=20`);
+        const data = await res.json();
+
+        if (data.followers && data.followers.length > 0) {
+          recentFollowers = data.followers.map(f => ({
+            name: f.name,
+            time: new Date(f.timestamp)
+          }));
+          renderPanels();
+          updateTicker();
+          console.log(`Loaded ${recentFollowers.length} followers from history`);
+        }
+      } catch (e) {
+        console.error('Failed to load followers:', e);
+      }
+    }
+
+    async function loadRecentSubs() {
+      try {
+        const res = await fetch(`${API_BASE}/api/twitch/recent-subs?limit=10`);
+        const data = await res.json();
+
+        if (data.subs && data.subs.length > 0) {
+          recentSubs = data.subs.map(s => ({
+            name: s.name,
+            tier: s.tier,
+            months: s.months || 0,
+            cumulativeMonths: s.cumulativeMonths || 0,
+            time: new Date(s.timestamp)
+          }));
+          renderPanels();
+          console.log(`Loaded ${recentSubs.length} subs from history`);
+        }
+      } catch (e) {
+        console.error('Failed to load recent subs:', e);
+      }
+    }
+
+    async function loadTickerMessages() {
+      try {
+        const res = await fetch(`${API_BASE}/api/ticker/messages`);
+        const data = await res.json();
+
+        // Build combined message list
+        tickerMessages = [];
+
+        // Add custom messages that are enabled
+        if (data.messages && data.messages.length > 0) {
+          data.messages.filter(m => m.enabled).forEach(m => {
+            tickerMessages.push({ type: 'custom', text: m.text });
+          });
+        }
+
+        // Add challenge rules if active
+        if (data.challengeActive && data.challengeRules && data.challengeRules.length > 0) {
+          data.challengeRules.forEach(rule => {
+            tickerMessages.push({ type: 'challenge', text: rule });
+          });
+        }
+
+        // Fallback if no messages
+        if (tickerMessages.length === 0) {
+          tickerMessages.push({ type: 'default', text: 'Welcome to the stream!' });
+        }
+
+        console.log(`Loaded ${tickerMessages.length} ticker messages`);
+        updateTickerDisplay();
+      } catch (e) {
+        console.error('Failed to load ticker messages:', e);
+        tickerMessages = [{ type: 'default', text: 'Welcome to the stream!' }];
+        updateTickerDisplay();
+      }
+    }
+
+    function updateTickerDisplay() {
+      const tickerLabel = document.getElementById('ticker-label');
+      const tickerMessage = document.getElementById('ticker-message');
+
+      if (tickerMessages.length === 0) return;
+
+      const msg = tickerMessages[currentTickerIndex];
+
+      // Update label based on message type
+      if (msg.type === 'challenge') {
+        tickerLabel.textContent = 'CHALLENGE';
+        tickerLabel.style.background = 'linear-gradient(135deg, #9b59b6, #8e44ad)';
+      } else {
+        tickerLabel.textContent = 'INFO';
+        tickerLabel.style.background = 'linear-gradient(135deg, #FF8C00, #FFD700)';
+      }
+
+      // Reset animation
+      tickerMessage.style.animation = 'none';
+      tickerMessage.offsetHeight; // Trigger reflow
+      tickerMessage.style.animation = 'tickerFade 6s ease-in-out';
+
+      tickerMessage.textContent = msg.text;
+    }
+
+    function cycleTickerMessage() {
+      currentTickerIndex = (currentTickerIndex + 1) % tickerMessages.length;
+      updateTickerDisplay();
+    }
+
+    function startTickerCycle() {
+      if (tickerInterval) clearInterval(tickerInterval);
+      tickerInterval = setInterval(cycleTickerMessage, 6000); // Match animation duration
+    }
+
+    function updateTicker() {
+      // Refresh ticker messages to include any new followers
+      loadTickerMessages();
+    }
+
+    async function loadTopGifters() {
+      try {
+        const res = await fetch(`${API_BASE}/api/twitch/top-gifters`);
+        const data = await res.json();
+
+        if (data.leaderboard && data.leaderboard.length > 0) {
+          topGifters = data.leaderboard.map(g => ({
+            name: g.name,
+            total: g.totalGifts
+          }));
+          renderPanels();
+          console.log(`Loaded ${topGifters.length} top gifters from history`);
+        }
+      } catch (e) {
+        console.error('Failed to load top gifters:', e);
+      }
+    }
+
+    async function init() {
+      createParticles();
+      connectWebSocket();
+      await loadChannelInfo();
+      await loadSubInfo();
+      await loadFollowers();
+      await loadRecentSubs();
+      await loadTopGifters();
+      await loadDbdState();
+      await loadTickerMessages();
+      renderPanels();
+      updateActivityTabVisibility();
+
+      // Start cycling tabs
+      setInterval(cycleTab, CYCLE_INTERVAL);
+
+      // Start ticker message cycling
+      startTickerCycle();
+
+      // Refresh data periodically
+      setInterval(() => {
+        loadChannelInfo();
+        loadSubInfo();
+        loadFollowers();
+        loadRecentSubs();
+        loadTopGifters();
+        loadDbdState();
+        loadTickerMessages();
+      }, 60000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

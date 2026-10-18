@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stream Companion Overlays</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a2e; color: #fff; padding: 40px; }
+    h1 { color: #e94560; }
+    a { color: #4fc3f7; }
+    ul { line-height: 2; }
+  </style>
+</head>
+<body>
+  <h1>Stream Companion Overlays</h1>
+  <p>Add these as Browser Sources in OBS/Meld:</p>
+  <ul>
+    <li><a href="/alerts.html">Alerts Overlay</a> - http://localhost:8877/alerts.html</li>
+    <li><a href="/events.html">Events Overlay</a> - http://localhost:8877/events.html</li>
+    <li><a href="/stats.html">Stats Overlay</a> - http://localhost:8877/stats.html</li>
+  </ul>
+  <h2>API Status</h2>
+  <p id="status">Checking...</p>
+  <script>
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => document.getElementById('status').textContent = 'Server OK - ' + new Date(d.timestamp).toLocaleString())
+      .catch(() => document.getElementById('status').textContent = 'Server not responding');
+  </script>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DBD Challenge Alerts</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .alerts-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    /* Killer Selection Alert */
+    .alert-killer-select {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: fadeInScale 0.5s ease-out;
+    }
+
+    .alert-killer-select.show {
+      display: flex;
+    }
+
+    .alert-killer-select.hide {
+      animation: fadeOutScale 0.5s ease-in forwards;
+    }
+
+    .killer-select-portrait {
+      width: 200px;
+      height: 200px;
+      border-radius: 12px;
+      border: 4px solid #FF8C00;
+      box-shadow: 0 0 40px rgba(255, 140, 0, 0.7), 0 0 80px rgba(255, 140, 0, 0.3);
+      object-fit: cover;
+      background: #1a1a2e;
+      animation: portraitPulse 2s ease-in-out infinite;
+    }
+
+    .killer-select-name {
+      font-size: 48px;
+      font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 4px 8px rgba(0, 0, 0, 0.8);
+      margin-top: 20px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .killer-select-tier {
+      font-size: 24px;
+      color: #FF8C00;
+      text-shadow: 0 0 15px rgba(255, 140, 0, 0.6);
+      margin-top: 8px;
+      text-transform: uppercase;
+    }
+
+    .killer-select-cost {
+      font-size: 20px;
+      color: #e94560;
+      text-shadow: 0 0 10px rgba(233, 69, 96, 0.6);
+      margin-top: 10px;
+    }
+
+    /* Game Result Alert */
+    .alert-game-result {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: slideInUp 0.6s ease-out;
+    }
+
+    .alert-game-result.show {
+      display: flex;
+    }
+
+    .alert-game-result.hide {
+      animation: slideOutUp 0.5s ease-in forwards;
+    }
+
+    .result-header {
+      font-size: 28px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+    }
+
+    .result-killer-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .result-portrait {
+      width: 100px;
+      height: 100px;
+      border-radius: 10px;
+      border: 3px solid #FF8C00;
+      box-shadow: 0 0 20px rgba(255, 140, 0, 0.5);
+      object-fit: cover;
+      background: #1a1a2e;
+    }
+
+    .result-killer-name {
+      font-size: 36px;
+      font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    }
+
+    .result-stats {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 20px;
+    }
+
+    .result-stat {
+      text-align: center;
+    }
+
+    .result-stat-value {
+      font-size: 56px;
+      font-weight: bold;
+      text-shadow: 0 0 20px currentColor;
+    }
+
+    .result-stat-value.kills {
+      color: #e94560;
+    }
+
+    .result-stat-label {
+      font-size: 16px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .result-net {
+      font-size: 42px;
+      font-weight: bold;
+      padding: 10px 30px;
+      border-radius: 8px;
+      animation: netPulse 1s ease-in-out infinite;
+    }
+
+    .result-net.positive {
+      color: #4caf50;
+      background: rgba(76, 175, 80, 0.2);
+      border: 2px solid rgba(76, 175, 80, 0.5);
+      text-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+    }
+
+    .result-net.negative {
+      color: #e94560;
+      background: rgba(233, 69, 96, 0.2);
+      border: 2px solid rgba(233, 69, 96, 0.5);
+      text-shadow: 0 0 20px rgba(233, 69, 96, 0.8);
+    }
+
+    /* Run Complete Alert */
+    .alert-run-complete {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: victoryEntrance 1s ease-out;
+    }
+
+    .alert-run-complete.show {
+      display: flex;
+    }
+
+    .alert-run-complete.hide {
+      animation: fadeOutScale 0.5s ease-in forwards;
+    }
+
+    .run-complete-title {
+      font-size: 72px;
+      font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 215, 0, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 5px;
+      animation: titleGlow 2s ease-in-out infinite;
+    }
+
+    .run-complete-subtitle {
+      font-size: 32px;
+      color: #4caf50;
+      text-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+      margin-top: 10px;
+    }
+
+    .run-complete-stats {
+      display: flex;
+      gap: 50px;
+      margin-top: 30px;
+    }
+
+    .run-stat {
+      text-align: center;
+      padding: 20px 30px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 12px;
+      border: 2px solid rgba(255, 140, 0, 0.4);
+    }
+
+    .run-stat-value {
+      font-size: 48px;
+      font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    }
+
+    .run-stat-label {
+      font-size: 14px;
+      color: #888;
+      text-transform: uppercase;
+      margin-top: 5px;
+    }
+
+    /* Run Failed Alert */
+    .alert-run-failed {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: shakeEntrance 0.6s ease-out;
+    }
+
+    .alert-run-failed.show {
+      display: flex;
+    }
+
+    .alert-run-failed.hide {
+      animation: fadeOutScale 0.5s ease-in forwards;
+    }
+
+    .run-failed-title {
+      font-size: 64px;
+      font-weight: bold;
+      color: #e94560;
+      text-shadow: 0 0 30px rgba(233, 69, 96, 0.8), 0 0 60px rgba(233, 69, 96, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 4px;
+    }
+
+    .run-failed-subtitle {
+      font-size: 28px;
+      color: #888;
+      margin-top: 15px;
+    }
+
+    .run-failed-stats {
+      display: flex;
+      gap: 40px;
+      margin-top: 25px;
+    }
+
+    /* Animations */
+    @keyframes fadeInScale {
+      from {
+        opacity: 0;
+        transform: scale(0.7);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes fadeOutScale {
+      from {
+        opacity: 1;
+        transform: scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: scale(0.7);
+      }
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(100px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideOutUp {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-100px);
+      }
+    }
+
+    @keyframes portraitPulse {
+      0%, 100% {
+        box-shadow: 0 0 40px rgba(255, 140, 0, 0.7), 0 0 80px rgba(255, 140, 0, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 60px rgba(255, 140, 0, 0.9), 0 0 100px rgba(255, 140, 0, 0.5);
+      }
+    }
+
+    @keyframes netPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes victoryEntrance {
+      0% {
+        opacity: 0;
+        transform: scale(0.3) rotate(-10deg);
+      }
+      50% {
+        transform: scale(1.1) rotate(2deg);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+
+    @keyframes shakeEntrance {
+      0% {
+        opacity: 0;
+        transform: translateX(-50px);
+      }
+      20% {
+        transform: translateX(30px);
+      }
+      40% {
+        transform: translateX(-20px);
+      }
+      60% {
+        transform: translateX(10px);
+      }
+      80% {
+        transform: translateX(-5px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes titleGlow {
+      0%, 100% {
+        text-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 215, 0, 0.4);
+      }
+      50% {
+        text-shadow: 0 0 50px rgba(255, 215, 0, 1), 0 0 100px rgba(255, 215, 0, 0.6);
+      }
+    }
+
+    /* Promotion Alert */
+    .alert-promotion {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: fadeInScale 0.5s ease-out;
+    }
+
+    .alert-promotion.show {
+      display: flex;
+    }
+
+    .alert-promotion.hide {
+      animation: fadeOutScale 0.5s ease-in forwards;
+    }
+
+    .promotion-title {
+      font-size: 36px;
+      color: #4caf50;
+      text-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 15px;
+    }
+
+    .promotion-killer {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .promotion-portrait {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      border: 3px solid #4caf50;
+      box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+      object-fit: cover;
+      background: #1a1a2e;
+    }
+
+    .promotion-name {
+      font-size: 32px;
+      font-weight: bold;
+      color: #FFD700;
+    }
+
+    .promotion-arrow {
+      font-size: 28px;
+      color: #4caf50;
+      margin: 10px 0;
+    }
+
+    .promotion-new-tier {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4caf50;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      background: rgba(76, 175, 80, 0.2);
+      border: 2px solid rgba(76, 175, 80, 0.5);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="alerts-container">
+    <!-- Killer Selection Alert -->
+    <div class="alert-killer-select" id="alert-killer-select">
+      <img class="killer-select-portrait" id="select-portrait" src="" alt="">
+      <div class="killer-select-name" id="select-name">-</div>
+      <div class="killer-select-tier" id="select-tier">-</div>
+      <div class="killer-select-cost" id="select-cost">-</div>
+    </div>
+
+    <!-- Game Result Alert -->
+    <div class="alert-game-result" id="alert-game-result">
+      <div class="result-header">Game Complete</div>
+      <div class="result-killer-row">
+        <img class="result-portrait" id="result-portrait" src="" alt="">
+        <div class="result-killer-name" id="result-name">-</div>
+      </div>
+      <div class="result-stats">
+        <div class="result-stat">
+          <div class="result-stat-value kills" id="result-kills">0</div>
+          <div class="result-stat-label">Kills</div>
+        </div>
+      </div>
+      <div class="result-net" id="result-net">+0</div>
+    </div>
+
+    <!-- Run Complete Alert -->
+    <div class="alert-run-complete" id="alert-run-complete">
+      <div class="run-complete-title">Run Complete!</div>
+      <div class="run-complete-subtitle">All 44 Killers Played</div>
+      <div class="run-complete-stats">
+        <div class="run-stat">
+          <div class="run-stat-value" id="complete-games">0</div>
+          <div class="run-stat-label">Games</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="complete-kills">0</div>
+          <div class="run-stat-label">Total Kills</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="complete-points">0</div>
+          <div class="run-stat-label">Final Points</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Failed Alert -->
+    <div class="alert-run-failed" id="alert-run-failed">
+      <div class="run-failed-title">Run Over</div>
+      <div class="run-failed-subtitle">Out of Points!</div>
+      <div class="run-failed-stats">
+        <div class="run-stat">
+          <div class="run-stat-value" id="failed-games">0</div>
+          <div class="run-stat-label">Games</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="failed-killers">0</div>
+          <div class="run-stat-label">Killers</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Killer Promotion Alert -->
+    <div class="alert-promotion" id="alert-promotion">
+      <div class="promotion-title">Killer Promoted!</div>
+      <div class="promotion-killer">
+        <img class="promotion-portrait" id="promo-portrait" src="" alt="">
+        <div class="promotion-name" id="promo-name">-</div>
+      </div>
+      <div class="promotion-arrow">Added to Free Pool!</div>
+    </div>
+  </div>
+
+  <script>
+    // Local portrait path (files are named "The Trapper.png" etc)
+    function getKillerPortrait(killerName) {
+      return '/media/killers/The ' + encodeURIComponent(killerName) + '.png';
+    }
+
+    let ws;
+    let currentAlert = null;
+    let alertQueue = [];
+    let isShowingAlert = false;
+
+    // Alert durations (ms)
+    const ALERT_DURATIONS = {
+      'killer-select': 4000,
+      'game-result': 5000,
+      'run-complete': 8000,
+      'run-failed': 6000,
+      'promotion': 4000
+    };
+
+    function connectWebSocket() {
+      ws = new WebSocket('ws://localhost:8878');
+
+      ws.onopen = () => {
+        console.log('Connected to Stream Companion');
+      };
+
+      ws.onclose = () => {
+        console.log('Disconnected, reconnecting...');
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+      };
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'dbd-killer-selected':
+          queueAlert('killer-select', data.data);
+          break;
+
+        case 'dbd-game-recorded':
+          queueAlert('game-result', data.data);
+          break;
+
+        case 'dbd-challenge-ended':
+          if (data.data.reason === 'complete') {
+            queueAlert('run-complete', data.data);
+          } else if (data.data.reason === 'failed') {
+            queueAlert('run-failed', data.data);
+          }
+          break;
+
+        case 'dbd-killer-promoted':
+          queueAlert('promotion', data.data);
+          break;
+      }
+    }
+
+    function queueAlert(type, data) {
+      alertQueue.push({ type, data });
+      processQueue();
+    }
+
+    function processQueue() {
+      if (isShowingAlert || alertQueue.length === 0) return;
+
+      const alert = alertQueue.shift();
+      showAlert(alert.type, alert.data);
+    }
+
+    function showAlert(type, data) {
+      isShowingAlert = true;
+      hideAllAlerts();
+
+      switch (type) {
+        case 'killer-select':
+          showKillerSelect(data);
+          break;
+        case 'game-result':
+          showGameResult(data);
+          break;
+        case 'run-complete':
+          showRunComplete(data);
+          break;
+        case 'run-failed':
+          showRunFailed(data);
+          break;
+        case 'promotion':
+          showPromotion(data);
+          break;
+      }
+
+      currentAlert = document.getElementById(`alert-${type}`);
+      if (currentAlert) {
+        currentAlert.style.display = '';  // Clear inline style so CSS class works
+        currentAlert.classList.remove('hide');
+        currentAlert.classList.add('show');
+
+        setTimeout(() => {
+          hideCurrentAlert();
+        }, ALERT_DURATIONS[type]);
+      }
+    }
+
+    function hideCurrentAlert() {
+      if (currentAlert) {
+        currentAlert.classList.remove('show');
+        currentAlert.classList.add('hide');
+
+        setTimeout(() => {
+          currentAlert.classList.remove('hide');
+          currentAlert.style.display = 'none';
+          currentAlert = null;
+          isShowingAlert = false;
+          processQueue();
+        }, 500);
+      } else {
+        isShowingAlert = false;
+        processQueue();
+      }
+    }
+
+    function hideAllAlerts() {
+      document.querySelectorAll('[class^="alert-"]').forEach(el => {
+        el.classList.remove('show', 'hide');
+        el.style.display = 'none';
+      });
+    }
+
+    function showKillerSelect(data) {
+      const portraitUrl = getKillerPortrait(data.killer);
+      document.getElementById('select-portrait').src = portraitUrl;
+      document.getElementById('select-name').textContent = data.killer;
+      document.getElementById('select-tier').textContent = (data.tier || '').toUpperCase() + ' Tier';
+      document.getElementById('select-cost').textContent = `Cost: ${data.cost || data.pointsSpent || 0} Points`;
+    }
+
+    function showGameResult(data) {
+      const portraitUrl = getKillerPortrait(data.killer);
+      document.getElementById('result-portrait').src = portraitUrl;
+      document.getElementById('result-name').textContent = data.killer;
+      document.getElementById('result-kills').textContent = data.kills || 0;
+
+      const net = (data.pointsEarned || 0) - (data.pointsSpent || 0);
+      const netEl = document.getElementById('result-net');
+      netEl.textContent = (net >= 0 ? '+' : '') + net + ' Points';
+      netEl.className = 'result-net ' + (net >= 0 ? 'positive' : 'negative');
+    }
+
+    function showRunComplete(data) {
+      document.getElementById('complete-games').textContent = data.gamesPlayed || 0;
+      document.getElementById('complete-kills').textContent = data.totalKills || 0;
+      document.getElementById('complete-points').textContent = data.currentPoints || 0;
+    }
+
+    function showRunFailed(data) {
+      document.getElementById('failed-games').textContent = data.gamesPlayed || 0;
+      const killersPlayed = Object.values(data.killers || {}).filter(k => k.played).length;
+      document.getElementById('failed-killers').textContent = killersPlayed + '/44';
+    }
+
+    function showPromotion(data) {
+      const portraitUrl = getKillerPortrait(data.killer);
+      document.getElementById('promo-portrait').src = portraitUrl;
+      document.getElementById('promo-name').textContent = data.killer;
+    }
+
+    // Initialize
+    connectWebSocket();
+
+    // Test mode - add ?test to URL to show test button
+    if (window.location.search.includes('test')) {
+      const testBtn = document.createElement('button');
+      testBtn.textContent = 'Test Alert';
+      testBtn.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:9999;padding:10px;';
+      testBtn.onclick = () => {
+        queueAlert('killer-select', { killer: 'Trapper', tier: 'free', cost: 0 });
+        setTimeout(() => {
+          queueAlert('game-result', { killer: 'Trapper', kills: 3, pointsEarned: 3, pointsSpent: 0 });
+        }, 5000);
+      };
+      document.body.appendChild(testBtn);
+    }
+  </script>
+</body>
+</html>

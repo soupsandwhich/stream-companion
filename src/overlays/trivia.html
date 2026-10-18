@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trivia Overlay</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: 'Roboto', sans-serif;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+    }
+
+    /* Scale wrapper - maintains 16:9 aspect ratio and scales content */
+    #scale-wrapper {
+      width: 1920px;
+      height: 1080px;
+      transform-origin: top left;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* Animated background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        radial-gradient(circle at 20% 80%, rgba(255, 140, 0, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 215, 0, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(255, 140, 0, 0.03) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Grid pattern overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        linear-gradient(rgba(255,140,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,140,0,0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none;
+    }
+
+    /* Main layout container */
+    #game-layout {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      gap: 20px;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #game-layout.show { opacity: 1; }
+
+    /* Panel base styles */
+    .panel {
+      background: linear-gradient(180deg, rgba(20,20,30,0.95) 0%, rgba(15,15,25,0.98) 100%);
+      border-radius: 16px;
+      border: 2px solid rgba(255,140,0,0.3);
+      box-shadow:
+        0 10px 40px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      background: linear-gradient(90deg, #FF8C00, #cc7000);
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .panel-header img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+
+    .panel-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* ========== CHAT PANEL (LEFT) ========== */
+    #chat-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chat-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #chat-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat-list::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+    }
+
+    #chat-list::-webkit-scrollbar-thumb {
+      background: rgba(255,140,0,0.4);
+      border-radius: 3px;
+    }
+
+    .chat-message {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 10px 14px;
+      border-left: 3px solid #444;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(-20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .chat-message.correct {
+      background: linear-gradient(90deg, rgba(255,140,0,0.2), rgba(255,140,0,0.05));
+      border-left-color: #FFD700;
+    }
+
+    .chat-user {
+      font-size: 13px;
+      font-weight: 700;
+      color: #FF8C00;
+      margin-bottom: 4px;
+    }
+
+    .chat-message.correct .chat-user {
+      color: #FFD700;
+    }
+
+    .chat-text {
+      font-size: 14px;
+      color: #ccc;
+      word-wrap: break-word;
+    }
+
+    .chat-message.correct .chat-text {
+      color: white;
+      font-weight: 500;
+    }
+
+    .chat-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #1a1a1a;
+      background: #FFD700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+      text-transform: uppercase;
+    }
+
+    #chat-empty {
+      color: #555;
+      text-align: center;
+      padding: 40px 20px;
+      font-style: italic;
+    }
+
+    /* ========== CENTER TRIVIA PANEL ========== */
+    #trivia-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #trivia-header {
+      background: linear-gradient(90deg, #FF8C00, #cc7000);
+      padding: 20px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #trivia-header-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    #trivia-header img {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+
+    #trivia-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    #question-progress {
+      font-family: 'Oswald', sans-serif;
+      font-size: 22px;
+      color: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.2);
+      padding: 8px 20px;
+      border-radius: 20px;
+    }
+
+    #trivia-content {
+      flex: 1;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #question-text {
+      font-family: 'Oswald', sans-serif;
+      font-size: 36px;
+      font-weight: 600;
+      color: white;
+      text-align: center;
+      margin-bottom: 40px;
+      line-height: 1.3;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      padding: 0 20px;
+    }
+
+    #answer-board {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      flex: 1;
+    }
+
+    .answer-row {
+      display: flex;
+      align-items: center;
+      background: linear-gradient(90deg, rgba(45,45,55,0.9), rgba(35,35,45,0.9));
+      border-radius: 12px;
+      padding: 18px 25px;
+      border: 2px solid #444;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .answer-row.revealed {
+      border-color: #FF8C00;
+      background: linear-gradient(90deg, #FF8C00, #cc7000);
+      box-shadow: 0 5px 20px rgba(255,140,0,0.4);
+    }
+
+    .answer-row.revealed .answer-text,
+    .answer-row.revealed .answer-points {
+      color: white;
+    }
+
+    .answer-number {
+      font-family: 'Oswald', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #FFD700;
+      width: 50px;
+      text-align: center;
+    }
+
+    .answer-text {
+      flex: 1;
+      font-size: 24px;
+      font-weight: 600;
+      color: #888;
+      padding: 0 25px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .answer-points {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #FFD700;
+      background: rgba(0,0,0,0.3);
+      padding: 8px 20px;
+      border-radius: 10px;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .answer-user {
+      font-size: 14px;
+      color: rgba(255,255,255,0.8);
+      position: absolute;
+      bottom: 5px;
+      right: 25px;
+      background: rgba(0,0,0,0.3);
+      padding: 2px 10px;
+      border-radius: 10px;
+    }
+
+    /* ========== LEADERBOARD PANEL (RIGHT) ========== */
+    #leaderboard-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #leaderboard-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .leaderboard-row.rank-1 {
+      background: linear-gradient(90deg, rgba(255,215,0,0.2), rgba(255,215,0,0.05));
+      border-color: #FFD700;
+    }
+
+    .leaderboard-row.rank-2 {
+      background: linear-gradient(90deg, rgba(192,192,192,0.15), rgba(192,192,192,0.03));
+      border-color: silver;
+    }
+
+    .leaderboard-row.rank-3 {
+      background: linear-gradient(90deg, rgba(205,127,50,0.15), rgba(205,127,50,0.03));
+      border-color: #cd7f32;
+    }
+
+    .leaderboard-rank {
+      font-family: 'Oswald', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      width: 40px;
+      text-align: center;
+    }
+
+    .leaderboard-row.rank-1 .leaderboard-rank { color: #FFD700; }
+    .leaderboard-row.rank-2 .leaderboard-rank { color: #C0C0C0; }
+    .leaderboard-row.rank-3 .leaderboard-rank { color: #cd7f32; }
+    .leaderboard-row:not(.rank-1):not(.rank-2):not(.rank-3) .leaderboard-rank { color: #666; }
+
+    .leaderboard-name {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      padding: 0 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .leaderboard-score {
+      font-family: 'Oswald', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #FF8C00;
+    }
+
+    .leaderboard-empty {
+      color: #555;
+      text-align: center;
+      padding: 40px 20px;
+      font-style: italic;
+    }
+
+    /* Score change animation */
+    .leaderboard-row.score-up {
+      animation: scoreUp 0.5s ease;
+    }
+
+    @keyframes scoreUp {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); background: rgba(255,140,0,0.3); }
+      100% { transform: scale(1); }
+    }
+
+    /* ========== INTRO SCREEN ========== */
+    #intro-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 100;
+    }
+
+    #intro-container::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        radial-gradient(circle at 20% 80%, rgba(255, 140, 0, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 215, 0, 0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    #intro-container.show { opacity: 1; }
+
+    #intro-logo {
+      width: 150px;
+      height: auto;
+      margin-bottom: 30px;
+      filter: drop-shadow(0 0 30px rgba(255,140,0,0.5));
+    }
+
+    #intro-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 80px;
+      font-weight: 700;
+      color: #FFD700;
+      text-transform: uppercase;
+      letter-spacing: 15px;
+      margin-bottom: 50px;
+      text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 50px rgba(255,140,0,0.5);
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 50px rgba(255,140,0,0.5); }
+      to { text-shadow: 4px 4px 8px rgba(0,0,0,0.5), 0 0 80px rgba(255,215,0,0.8); }
+    }
+
+    #intro-rules {
+      background: rgba(20,20,30,0.9);
+      border-radius: 20px;
+      border: 2px solid rgba(255,140,0,0.3);
+      padding: 40px 60px;
+      margin-bottom: 40px;
+    }
+
+    .rule-item {
+      display: flex;
+      align-items: center;
+      padding: 15px 0;
+    }
+
+    .rule-icon {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #FFD700;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,140,0,0.2);
+      border-radius: 50%;
+      margin-right: 25px;
+    }
+
+    .rule-text {
+      font-size: 24px;
+      color: white;
+    }
+
+    #intro-info {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 50px;
+    }
+
+    #intro-info span {
+      font-family: 'Oswald', sans-serif;
+      font-size: 28px;
+      color: #FFD700;
+      padding: 15px 40px;
+      background: rgba(255,140,0,0.15);
+      border-radius: 12px;
+      border: 2px solid rgba(255,140,0,0.3);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    #intro-ready {
+      font-family: 'Oswald', sans-serif;
+      font-size: 42px;
+      color: #FF8C00;
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ========== FINAL LEADERBOARD SCREEN ========== */
+    #final-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 50%, #16213e 100%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 100;
+    }
+
+    #final-container::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        radial-gradient(circle at 30% 70%, rgba(255, 215, 0, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 70% 30%, rgba(255, 140, 0, 0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    #final-container.show { opacity: 1; }
+
+    #final-logo {
+      width: 120px;
+      height: auto;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 0 30px rgba(255,140,0,0.5));
+    }
+
+    #final-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: #FFD700;
+      text-transform: uppercase;
+      letter-spacing: 10px;
+      margin-bottom: 40px;
+      text-shadow: 3px 3px 6px rgba(0,0,0,0.5), 0 0 40px rgba(255,140,0,0.5);
+    }
+
+    #final-list {
+      background: rgba(20,20,30,0.9);
+      border-radius: 20px;
+      border: 2px solid rgba(255,140,0,0.3);
+      padding: 30px 50px;
+      min-width: 600px;
+    }
+
+    .final-row {
+      display: flex;
+      align-items: center;
+      padding: 15px 20px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      border: 2px solid transparent;
+    }
+
+    .final-row.rank-1 {
+      background: linear-gradient(90deg, rgba(255,215,0,0.25), rgba(255,215,0,0.05));
+      border-color: #FFD700;
+      transform: scale(1.05);
+    }
+
+    .final-row.rank-2 {
+      background: linear-gradient(90deg, rgba(192,192,192,0.2), rgba(192,192,192,0.03));
+      border-color: silver;
+    }
+
+    .final-row.rank-3 {
+      background: linear-gradient(90deg, rgba(205,127,50,0.2), rgba(205,127,50,0.03));
+      border-color: #cd7f32;
+    }
+
+    .final-rank {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      width: 60px;
+      text-align: center;
+    }
+
+    .final-row.rank-1 .final-rank { color: #FFD700; }
+    .final-row.rank-2 .final-rank { color: #C0C0C0; }
+    .final-row.rank-3 .final-rank { color: #cd7f32; }
+    .final-row:not(.rank-1):not(.rank-2):not(.rank-3) .final-rank { color: #666; }
+
+    .final-name {
+      flex: 1;
+      font-size: 26px;
+      font-weight: 600;
+      color: white;
+      padding: 0 20px;
+    }
+
+    .final-score {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #FF8C00;
+    }
+
+    /* Animations */
+    @keyframes revealAnswer {
+      0% { transform: scale(0.95); opacity: 0.5; }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .answer-row.revealing {
+      animation: revealAnswer 0.4s ease forwards;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 5px 20px rgba(255,140,0,0.4); }
+      50% { box-shadow: 0 5px 30px rgba(255,140,0,0.7); }
+    }
+
+    .answer-row.revealed {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .hidden { display: none !important; }
+
+    #status {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="scale-wrapper">
+  <!-- Intro Screen -->
+  <div id="intro-container" class="hidden">
+    <img id="intro-logo" src="/media/3 - Twitch Alerts/Logo.png" alt="Soupy Games">
+    <div id="intro-title">TRIVIA TIME!</div>
+    <div id="intro-rules">
+      <div class="rule-item">
+        <span class="rule-icon">1</span>
+        <span class="rule-text">Type your answers in chat</span>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">2</span>
+        <span class="rule-text">Higher ranked answers = more points</span>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">3</span>
+        <span class="rule-text">First to answer correctly gets the points</span>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">4</span>
+        <span class="rule-text">Top scorer wins!</span>
+      </div>
+    </div>
+    <div id="intro-info">
+      <span id="intro-questions">5 Questions</span>
+      <span id="intro-answers">4 Answers Each</span>
+    </div>
+    <div id="intro-ready">GET READY...</div>
+  </div>
+
+  <!-- Main Game Layout -->
+  <div id="game-layout" class="hidden">
+    <!-- Left Panel: Chat -->
+    <div id="chat-panel" class="panel">
+      <div class="panel-header">
+        <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+        <span class="panel-title">Live Chat</span>
+      </div>
+      <div id="chat-list">
+        <div id="chat-empty">Waiting for answers...</div>
+      </div>
+    </div>
+
+    <!-- Center Panel: Trivia -->
+    <div id="trivia-panel" class="panel">
+      <div id="trivia-header">
+        <div id="trivia-header-left">
+          <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+          <span id="trivia-title">Trivia</span>
+        </div>
+        <span id="question-progress">Question 1 of 5</span>
+      </div>
+      <div id="trivia-content">
+        <div id="question-text">Loading question...</div>
+        <div id="answer-board"></div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Leaderboard -->
+    <div id="leaderboard-panel" class="panel">
+      <div class="panel-header">
+        <img src="/media/3 - Twitch Alerts/Logo.png" alt="">
+        <span class="panel-title">Leaderboard</span>
+      </div>
+      <div id="leaderboard-list">
+        <div class="leaderboard-empty">No scores yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Final Leaderboard Screen -->
+  <div id="final-container" class="hidden">
+    <img id="final-logo" src="/media/3 - Twitch Alerts/Logo.png" alt="Soupy Games">
+    <div id="final-title">Final Scores</div>
+    <div id="final-list"></div>
+  </div>
+  </div><!-- end scale-wrapper -->
+
+  <div id="status">Connecting...</div>
+
+  <script>
+    // Scale the content to fit the window
+    const scaleWrapper = document.getElementById('scale-wrapper');
+    const BASE_WIDTH = 1920;
+    const BASE_HEIGHT = 1080;
+
+    function updateScale() {
+      const scaleX = window.innerWidth / BASE_WIDTH;
+      const scaleY = window.innerHeight / BASE_HEIGHT;
+      const scale = Math.min(scaleX, scaleY);
+
+      scaleWrapper.style.transform = `scale(${scale})`;
+
+      // Center if aspect ratio doesn't match
+      const scaledWidth = BASE_WIDTH * scale;
+      const scaledHeight = BASE_HEIGHT * scale;
+      const offsetX = (window.innerWidth - scaledWidth) / 2;
+      const offsetY = (window.innerHeight - scaledHeight) / 2;
+      scaleWrapper.style.left = offsetX + 'px';
+      scaleWrapper.style.top = offsetY + 'px';
+    }
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
+  </script>
+
+  <script>
+    let ws;
+    const LOGO_URL = '/media/3 - Twitch Alerts/Logo.png';
+
+    // Elements
+    const introContainer = document.getElementById('intro-container');
+    const introQuestions = document.getElementById('intro-questions');
+    const introAnswers = document.getElementById('intro-answers');
+    const gameLayout = document.getElementById('game-layout');
+    const questionProgress = document.getElementById('question-progress');
+    const questionText = document.getElementById('question-text');
+    const answerBoard = document.getElementById('answer-board');
+    const chatList = document.getElementById('chat-list');
+    const chatEmpty = document.getElementById('chat-empty');
+    const leaderboardList = document.getElementById('leaderboard-list');
+    const finalContainer = document.getElementById('final-container');
+    const finalList = document.getElementById('final-list');
+    const statusEl = document.getElementById('status');
+
+    // State
+    let currentLeaderboard = {};
+    let chatMessages = [];
+    const MAX_CHAT_MESSAGES = 50;
+
+    function connect() {
+      ws = new WebSocket('ws://localhost:8878');
+      ws.onopen = () => { statusEl.textContent = 'Connected'; };
+      ws.onclose = () => {
+        statusEl.textContent = 'Disconnected';
+        setTimeout(connect, 3000);
+      };
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        handleMessage(data);
+      };
+    }
+
+    function handleMessage(data) {
+      switch (data.type) {
+        case 'trivia-intro':
+          showIntro(data.data);
+          break;
+
+        case 'trivia-started':
+          // Reset state
+          currentLeaderboard = {};
+          chatMessages = [];
+          clearChat();
+          clearLeaderboard();
+          break;
+
+        case 'trivia-question':
+          showQuestion(data.data);
+          // Clear chat for new question
+          chatMessages = [];
+          clearChat();
+          break;
+
+        case 'trivia-chat':
+          addChatMessage(data.data);
+          break;
+
+        case 'trivia-answer-reveal':
+          revealAnswer(data.data);
+          // Mark chat message as correct
+          if (data.data.user && data.data.chatMessageId) {
+            markChatCorrect(data.data.chatMessageId, data.data.points);
+          }
+          // Update leaderboard
+          if (data.data.user) {
+            updateLeaderboard(data.data.user, data.data.points);
+          }
+          break;
+
+        case 'trivia-reveal-all':
+          data.data.revealed.forEach(answer => {
+            revealAnswer({ ...answer, auto: true });
+          });
+          break;
+
+        case 'trivia-leaderboard':
+          // Full leaderboard update
+          setLeaderboard(data.data);
+          break;
+
+        case 'trivia-ended':
+          showFinalLeaderboard(data.data.leaderboard);
+          break;
+      }
+    }
+
+    // ========== INTRO ==========
+    function showIntro(data) {
+      finalContainer.classList.add('hidden');
+      finalContainer.classList.remove('show');
+      gameLayout.classList.add('hidden');
+      gameLayout.classList.remove('show');
+
+      introQuestions.textContent = `${data.maxQuestions} Questions`;
+      introAnswers.textContent = `${data.answerCount} Answers Each`;
+
+      introContainer.classList.remove('hidden');
+      introContainer.classList.add('show');
+    }
+
+    // ========== QUESTION ==========
+    function showQuestion(question) {
+      introContainer.classList.add('hidden');
+      introContainer.classList.remove('show');
+      finalContainer.classList.add('hidden');
+      finalContainer.classList.remove('show');
+
+      questionProgress.textContent = `Question ${question.questionNumber} of ${question.maxQuestions}`;
+      questionText.textContent = question.question;
+
+      // Build answer board
+      answerBoard.innerHTML = '';
+      question.answers.forEach((answer, i) => {
+        const row = document.createElement('div');
+        row.className = 'answer-row';
+        row.dataset.index = i;
+        row.innerHTML = `
+          <div class="answer-number">${i + 1}</div>
+          <div class="answer-text">???</div>
+          <div class="answer-points">?</div>
+        `;
+        answerBoard.appendChild(row);
+      });
+
+      gameLayout.classList.remove('hidden');
+      gameLayout.classList.add('show');
+    }
+
+    // ========== ANSWER REVEAL ==========
+    function revealAnswer(data) {
+      const row = answerBoard.querySelector(`[data-index="${data.index}"]`);
+      if (!row) return;
+
+      row.classList.add('revealing');
+
+      setTimeout(() => {
+        row.querySelector('.answer-text').textContent = data.text;
+        row.querySelector('.answer-points').textContent = data.points;
+        row.classList.remove('revealing');
+        row.classList.add('revealed');
+
+        if (data.user) {
+          const userEl = document.createElement('div');
+          userEl.className = 'answer-user';
+          userEl.textContent = data.user;
+          row.appendChild(userEl);
+        }
+      }, 200);
+    }
+
+    // ========== CHAT ==========
+    function clearChat() {
+      chatList.innerHTML = '<div id="chat-empty">Waiting for answers...</div>';
+    }
+
+    function addChatMessage(msg) {
+      // Remove empty message
+      const empty = document.getElementById('chat-empty');
+      if (empty) empty.remove();
+
+      chatMessages.push(msg);
+      if (chatMessages.length > MAX_CHAT_MESSAGES) {
+        chatMessages.shift();
+        const firstChild = chatList.firstElementChild;
+        if (firstChild) firstChild.remove();
+      }
+
+      const div = document.createElement('div');
+      div.className = 'chat-message';
+      div.dataset.id = msg.id;
+      div.innerHTML = `
+        <div class="chat-user">${escapeHtml(msg.user)}</div>
+        <div class="chat-text">${escapeHtml(msg.message)}</div>
+      `;
+      chatList.appendChild(div);
+
+      // Auto-scroll to bottom
+      chatList.scrollTop = chatList.scrollHeight;
+    }
+
+    function markChatCorrect(msgId, points) {
+      const div = chatList.querySelector(`[data-id="${msgId}"]`);
+      if (div) {
+        div.classList.add('correct');
+        const userEl = div.querySelector('.chat-user');
+        if (userEl && !userEl.querySelector('.chat-badge')) {
+          userEl.innerHTML += `<span class="chat-badge">+${points}</span>`;
+        }
+      }
+    }
+
+    // ========== LEADERBOARD ==========
+    function clearLeaderboard() {
+      currentLeaderboard = {};
+      leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet</div>';
+    }
+
+    function updateLeaderboard(user, points) {
+      if (!currentLeaderboard[user]) {
+        currentLeaderboard[user] = 0;
+      }
+      currentLeaderboard[user] += points;
+      renderLeaderboard(user);
+    }
+
+    function setLeaderboard(players) {
+      currentLeaderboard = {};
+      Object.entries(players).forEach(([name, data]) => {
+        currentLeaderboard[name] = data.points;
+      });
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard(highlightUser = null) {
+      const sorted = Object.entries(currentLeaderboard)
+        .map(([name, points]) => ({ name, points }))
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 10);
+
+      if (sorted.length === 0) {
+        leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet</div>';
+        return;
+      }
+
+      leaderboardList.innerHTML = '';
+      sorted.forEach((player, i) => {
+        const row = document.createElement('div');
+        row.className = 'leaderboard-row';
+        if (i === 0) row.classList.add('rank-1');
+        if (i === 1) row.classList.add('rank-2');
+        if (i === 2) row.classList.add('rank-3');
+        if (player.name === highlightUser) row.classList.add('score-up');
+
+        row.innerHTML = `
+          <div class="leaderboard-rank">#${i + 1}</div>
+          <div class="leaderboard-name">${escapeHtml(player.name)}</div>
+          <div class="leaderboard-score">${player.points}</div>
+        `;
+        leaderboardList.appendChild(row);
+      });
+    }
+
+    // ========== FINAL LEADERBOARD ==========
+    function showFinalLeaderboard(leaderboard) {
+      gameLayout.classList.add('hidden');
+      gameLayout.classList.remove('show');
+
+      finalList.innerHTML = '';
+      leaderboard.slice(0, 10).forEach((player, i) => {
+        const row = document.createElement('div');
+        row.className = 'final-row';
+        if (i === 0) row.classList.add('rank-1');
+        if (i === 1) row.classList.add('rank-2');
+        if (i === 2) row.classList.add('rank-3');
+
+        row.innerHTML = `
+          <div class="final-rank">#${i + 1}</div>
+          <div class="final-name">${escapeHtml(player.name)}</div>
+          <div class="final-score">${player.points}</div>
+        `;
+        finalList.appendChild(row);
+      });
+
+      finalContainer.classList.remove('hidden');
+      finalContainer.classList.add('show');
+    }
+
+    // ========== UTILS ==========
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    connect();
+  </script>
+</body>
+</html>
