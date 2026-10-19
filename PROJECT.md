@@ -81,6 +81,31 @@ match 1.3.2.
 
 Releasing is outward-facing, so confirm with Kyle before uploading.
 
+Keep exactly one previous build in `app-binary/previous/` (exe, blockmap and its
+`latest.yml`). On a release, replace `previous/` with the build being retired,
+then upload the new files. The updater only reads `app/latest.yml`, so files in
+`previous/` are never offered as updates. The folder is a bind mount served
+live by `express.static`, so no container restart is needed.
+
+## Rollback
+
+electron-updater never downgrades on its own. As of 2026-10-19 `previous/`
+holds 1.3.2 (live feed: 1.4.0).
+
+- **Reinstall the old build on the PC:** download
+  `https://stream.soupymediagroup.com/app/previous/Stream%20Companion%20Setup%201.3.2.exe`,
+  quit the app, and run the installer. Settings in `%APPDATA%\StreamCompanion\`
+  are kept.
+- **Restore the feed,** so the app doesn't update straight back. On Tower, in
+  `app-binary/`, delete the newer exe and blockmap, then move all three files
+  from `previous/` back up, `latest.yml` last:
+  ```
+  cd /mnt/user/appdata/stream-companion/app-binary
+  rm "Stream Companion Setup 1.4.0.exe" "Stream Companion Setup 1.4.0.exe.blockmap"
+  mv previous/*.exe previous/*.blockmap . && mv previous/latest.yml latest.yml
+  ```
+  Then check `https://stream.soupymediagroup.com/app/latest.yml`.
+
 ## Notes
 
 - User data lives in `%APPDATA%\StreamCompanion\` (`settings.json`, which holds
