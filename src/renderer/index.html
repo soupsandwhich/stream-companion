@@ -1516,7 +1516,8 @@
   </div>
 
   <script>
-    const { ipcRenderer } = require('electron');
+    // Bridge from src/main/preload.js (no Node access in the page)
+    const ipcRenderer = window.companion;
 
     let ws;
     let reconnectInterval;
