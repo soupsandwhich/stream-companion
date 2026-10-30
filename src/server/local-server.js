@@ -101,12 +101,12 @@ const CONFIG = {
   remoteWsUrl: process.env.REMOTE_WS_URL || 'wss://stream.soupymediagroup.com/ws',
   remoteApiUrl: process.env.REMOTE_API_URL || 'https://stream.soupymediagroup.com',
   // Game data on the streaming PC (same paths the old standalone server used)
-  mediaDir: process.env.MEDIA_DIR || 'C:\Streaming\Media',
-  triviaDir: process.env.TRIVIA_DIR || 'C:\Streaming\Media\Games\Trivia',
-  moviesDir: process.env.MOVIES_DIR || 'C:\Streaming\Media\Games\Movies',
-  killersDir: process.env.KILLERS_DIR || 'C:\Streaming\DBD Portraits\killers',
+  mediaDir: process.env.MEDIA_DIR || 'C:\\Streaming\\Media',
+  triviaDir: process.env.TRIVIA_DIR || 'C:\\Streaming\\Media\\Games\\Trivia',
+  moviesDir: process.env.MOVIES_DIR || 'C:\\Streaming\\Media\\Games\\Movies',
+  killersDir: process.env.KILLERS_DIR || 'C:\\Streaming\\DBD Portraits\\killers',
   // Cumulative game leaderboard (companion.json, shared with the old standalone server)
-  gamesDataDir: process.env.GAMES_DATA_DIR || 'C:\Streaming\Programs\StreamCompanion\data'
+  gamesDataDir: process.env.GAMES_DATA_DIR || 'C:\\Streaming\\Programs\\StreamCompanion\\data'
 };
 
 // ========== GAMES (trivia, movies, leaderboard) ==========
