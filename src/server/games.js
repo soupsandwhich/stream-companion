@@ -89,7 +89,8 @@ function generateTileRevealOrder(totalTiles = 40) {
 // ---------- Movie game settings (saved from the app UI) ----------
 const MOVIE_SETTINGS_DEFAULTS = {
   maxMovies: 5, pointsPerMovie: 500, secondsPerMovie: 36,
-  reveal: 'grid', cols: 16, rows: 10, uncoverFirstPct: 0.25, coversPerUnblur: 2, first: 'cover'
+  reveal: 'grid', cols: 16, rows: 10, uncoverFirstPct: 0.25, coversPerUnblur: 2, first: 'cover',
+  blurPx: 6 // blur on the not-yet-sharp picture, in px for a 960 px wide picture (the overlay scales it to the real size)
 };
 
 function clampNum(v, d, lo, hi, int) {
@@ -111,7 +112,8 @@ function normalizeMovieSettings(input, base = MOVIE_SETTINGS_DEFAULTS) {
     rows: clampNum(pick('rows'), d.rows, 1, 16, true),
     uncoverFirstPct: clampNum(pick('uncoverFirstPct'), d.uncoverFirstPct, 0, 1, false),
     coversPerUnblur: clampNum(pick('coversPerUnblur'), d.coversPerUnblur, 1, 10, true),
-    first: pick('first') === 'unblur' ? 'unblur' : 'cover'
+    first: pick('first') === 'unblur' ? 'unblur' : 'cover',
+    blurPx: clampNum(pick('blurPx'), d.blurPx, 0, 50, true)
   };
 }
 
@@ -120,7 +122,7 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir, movieSettingsSt
   let memorySettings;
   const loadMovieSettings = () => normalizeMovieSettings(movieSettingsStore ? movieSettingsStore.get() : memorySettings);
   const saveMovieSettings = (s) => { if (movieSettingsStore) movieSettingsStore.set(s); else memorySettings = s; };
-  const revealOptions = (s) => ({ reveal: s.reveal, cols: s.cols, rows: s.rows, uncoverFirstPct: s.uncoverFirstPct, coversPerUnblur: s.coversPerUnblur, first: s.first });
+  const revealOptions = (s) => ({ reveal: s.reveal, cols: s.cols, rows: s.rows, uncoverFirstPct: s.uncoverFirstPct, coversPerUnblur: s.coversPerUnblur, first: s.first, blurPx: s.blurPx });
 
   const store = new GameStatsStore(dataDir);
   let nextId = Date.now();
@@ -552,6 +554,11 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir, movieSettingsSt
     const settings = normalizeMovieSettings(req.body && (req.body.settings || req.body), loadMovieSettings());
     try {
       saveMovieSettings(settings);
+      // Blur applies live: update the running game and tell the overlay now.
+      if (movieState.active && movieState.revealOptions) {
+        movieState.revealOptions = { ...movieState.revealOptions, blurPx: settings.blurPx };
+        broadcast({ type: 'movie-options', data: { reveal: { blurPx: settings.blurPx } } });
+      }
       res.json({ success: true, settings });
     } catch (e) {
       console.error('[Games] Movie settings save error:', e.message);
@@ -563,7 +570,7 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir, movieSettingsSt
   //   secondsPerMovie  seconds each movie takes to reveal (preferred)
   //   totalGameTime    legacy: seconds for the whole game, divided by the number of movies
   //                    (only used when secondsPerMovie is not sent)
-  //   maxMovies, pointsPerMovie, reveal, cols, rows, uncoverFirstPct, coversPerUnblur, first
+  //   maxMovies, pointsPerMovie, reveal, cols, rows, uncoverFirstPct, coversPerUnblur, first, blurPx
   router.post('/api/movies/start', (req, res) => {
     const body = req.body || {};
     const saved = loadMovieSettings();
