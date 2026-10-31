@@ -97,7 +97,15 @@ let localSettings = loadLocalSettings();
 const CONFIG = {
   httpPort: process.env.HTTP_PORT || 8877,
   wsPort: process.env.WS_PORT || 8878,
-  overlaysDir: process.env.OVERLAYS_DIR || 'C:\\Streaming\\Programs\\StreamCompanion\\src\\overlays',
+  // Serve the overlays bundled with this build so app updates reach OBS.
+  // OVERLAYS_DIR still overrides; the old hand-copied folder is a last resort.
+  overlaysDir: [
+    process.env.OVERLAYS_DIR,
+    process.resourcesPath && path.join(process.resourcesPath, 'overlays'),
+    path.join(__dirname, '..', 'overlays'),
+    'C:\\Streaming\\Programs\\StreamCompanion\\src\\overlays',
+  ].find(dir => dir && fs.existsSync(path.join(dir, 'index.html')))
+    || path.join(__dirname, '..', 'overlays'),
   remoteWsUrl: process.env.REMOTE_WS_URL || 'wss://stream.soupymediagroup.com/ws',
   remoteApiUrl: process.env.REMOTE_API_URL || 'https://stream.soupymediagroup.com',
   // Game data on the streaming PC (same paths the old standalone server used)
