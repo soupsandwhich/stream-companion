@@ -1,6 +1,6 @@
 {
   "name": "stream-companion",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "Stream Companion for Streamerbot",
   "main": "src/main/index.js",
   "author": "Kyle",
