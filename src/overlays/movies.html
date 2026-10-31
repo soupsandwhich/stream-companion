@@ -667,24 +667,39 @@
     const MAX_CHAT_MESSAGES = 50;
     const TOTAL_TILES = 40; // 8x5 grid (classic mode)
 
-    // ---- Reveal options (set on the OBS browser source URL, e.g. movies.html?cols=5&rows=4&first=unblur) ----
+    // ---- Reveal options. Set in the app (Movies page); URL params override, e.g. movies.html?cols=5&rows=4&first=unblur ----
     //   reveal=grid|classic        grid (default): cover boxes come off first, then removing covers alternates
     //                              with unblurring boxes. classic: old behaviour (global blur + 8x5 tiles)
-    //   cols, rows                 grid size for grid mode (default 8 x 5)
+    //   cols, rows                 grid size for grid mode, max 16 x 16 (default 16 x 10)
     //   revealUncoverFirstPct      fraction of boxes uncovered (blurred) before unblurring starts (default 0.25)
     //   first=cover|unblur         which step type starts the alternating phase (default cover)
     //   coversPerUnblur            covers removed for each unblur in the alternating phase (default 2)
     const qs = new URLSearchParams(location.search);
     const clampInt = (v, d, lo, hi) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
     const pctParam = parseFloat(qs.get('revealUncoverFirstPct'));
-    const OPT = {
-      mode: qs.get('reveal') === 'classic' ? 'classic' : 'grid',
-      cols: clampInt(qs.get('cols'), 8, 1, 16),
-      rows: clampInt(qs.get('rows'), 5, 1, 12),
-      first: qs.get('first') === 'unblur' ? 'unblur' : 'cover',
-      uncoverFirstPct: Number.isFinite(pctParam) ? Math.min(1, Math.max(0, pctParam)) : 0.25,
-      coversPerUnblur: clampInt(qs.get('coversPerUnblur'), 2, 1, 10)
-    };
+    // Normal path: the app's Movies page saves these and the server sends them with every game message
+    // (data.reveal). URL params, when present, override the app settings.
+    const OPT = { mode: 'grid', cols: 16, rows: 10, first: 'cover', uncoverFirstPct: 0.25, coversPerUnblur: 2 };
+    function applyRevealSettings(r) {
+      r = r || {};
+      const has = (k) => qs.has(k);
+      if (!has('reveal') && r.reveal) OPT.mode = r.reveal === 'classic' ? 'classic' : 'grid';
+      if (!has('cols') && r.cols !== undefined) OPT.cols = clampInt(r.cols, OPT.cols, 1, 16);
+      if (!has('rows') && r.rows !== undefined) OPT.rows = clampInt(r.rows, OPT.rows, 1, 16);
+      if (!has('first') && r.first) OPT.first = r.first === 'unblur' ? 'unblur' : 'cover';
+      if (!has('revealUncoverFirstPct') && r.uncoverFirstPct !== undefined) {
+        const p = parseFloat(r.uncoverFirstPct);
+        if (Number.isFinite(p)) OPT.uncoverFirstPct = Math.min(1, Math.max(0, p));
+      }
+      if (!has('coversPerUnblur') && r.coversPerUnblur !== undefined) OPT.coversPerUnblur = clampInt(r.coversPerUnblur, OPT.coversPerUnblur, 1, 10);
+    }
+    // URL overrides (also the starting values before any game message arrives)
+    if (qs.has('reveal')) OPT.mode = qs.get('reveal') === 'classic' ? 'classic' : 'grid';
+    if (qs.has('cols')) OPT.cols = clampInt(qs.get('cols'), OPT.cols, 1, 16);
+    if (qs.has('rows')) OPT.rows = clampInt(qs.get('rows'), OPT.rows, 1, 16);
+    if (qs.has('first')) OPT.first = qs.get('first') === 'unblur' ? 'unblur' : 'cover';
+    if (Number.isFinite(pctParam)) OPT.uncoverFirstPct = Math.min(1, Math.max(0, pctParam));
+    if (qs.has('coversPerUnblur')) OPT.coversPerUnblur = clampInt(qs.get('coversPerUnblur'), OPT.coversPerUnblur, 1, 10);
     let gridCells = [];   // { sharp, tile }
     let gridPlan = [];    // ordered steps: { type: 'cover'|'unblur', cell }
     let gridApplied = 0;  // number of plan steps currently applied
@@ -770,6 +785,7 @@
       finalContainer.classList.add('hidden');
       finalContainer.classList.remove('show');
 
+      applyRevealSettings(data.reveal);
       movieProgress.textContent = `Movie ${data.movieNumber} of ${data.maxMovies}`;
 
       // Reset image state first

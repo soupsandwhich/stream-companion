@@ -86,7 +86,42 @@ function generateTileRevealOrder(totalTiles = 40) {
   return indices;
 }
 
-function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
+// ---------- Movie game settings (saved from the app UI) ----------
+const MOVIE_SETTINGS_DEFAULTS = {
+  maxMovies: 5, pointsPerMovie: 500, secondsPerMovie: 36,
+  reveal: 'grid', cols: 16, rows: 10, uncoverFirstPct: 0.25, coversPerUnblur: 2, first: 'cover'
+};
+
+function clampNum(v, d, lo, hi, int) {
+  const n = int ? parseInt(v, 10) : parseFloat(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
+}
+
+// Fills gaps from `base` and clamps everything, so bad input can never reach the overlay.
+function normalizeMovieSettings(input, base = MOVIE_SETTINGS_DEFAULTS) {
+  const i = input || {};
+  const pick = (k) => (i[k] !== undefined && i[k] !== null && i[k] !== '' ? i[k] : base[k]);
+  const d = MOVIE_SETTINGS_DEFAULTS;
+  return {
+    maxMovies: clampNum(pick('maxMovies'), d.maxMovies, 1, 50, true),
+    pointsPerMovie: clampNum(pick('pointsPerMovie'), d.pointsPerMovie, 1, 100000, true),
+    secondsPerMovie: clampNum(pick('secondsPerMovie'), d.secondsPerMovie, 5, 600, true),
+    reveal: pick('reveal') === 'classic' ? 'classic' : 'grid',
+    cols: clampNum(pick('cols'), d.cols, 1, 16, true),
+    rows: clampNum(pick('rows'), d.rows, 1, 16, true),
+    uncoverFirstPct: clampNum(pick('uncoverFirstPct'), d.uncoverFirstPct, 0, 1, false),
+    coversPerUnblur: clampNum(pick('coversPerUnblur'), d.coversPerUnblur, 1, 10, true),
+    first: pick('first') === 'unblur' ? 'unblur' : 'cover'
+  };
+}
+
+function createGames({ broadcast, triviaDir, moviesDir, dataDir, movieSettingsStore }) {
+  // movieSettingsStore: { get(): object|undefined, set(obj): void } - persisted by the host
+  let memorySettings;
+  const loadMovieSettings = () => normalizeMovieSettings(movieSettingsStore ? movieSettingsStore.get() : memorySettings);
+  const saveMovieSettings = (s) => { if (movieSettingsStore) movieSettingsStore.set(s); else memorySettings = s; };
+  const revealOptions = (s) => ({ reveal: s.reveal, cols: s.cols, rows: s.rows, uncoverFirstPct: s.uncoverFirstPct, coversPerUnblur: s.coversPerUnblur, first: s.first });
+
   const store = new GameStatsStore(dataDir);
   let nextId = Date.now();
   const newId = () => ++nextId;
@@ -511,10 +546,33 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
 
   router.get('/api/movies/state', (req, res) => res.json({ ...movieState, revealInterval: null }));
 
+  router.get('/api/movies/settings', (req, res) => res.json({ settings: loadMovieSettings(), defaults: MOVIE_SETTINGS_DEFAULTS }));
+
+  router.post('/api/movies/settings', (req, res) => {
+    const settings = normalizeMovieSettings(req.body && (req.body.settings || req.body), loadMovieSettings());
+    try {
+      saveMovieSettings(settings);
+      res.json({ success: true, settings });
+    } catch (e) {
+      console.error('[Games] Movie settings save error:', e.message);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // Body fields are all optional; anything omitted comes from the saved UI settings.
+  //   secondsPerMovie  seconds each movie takes to reveal (preferred)
+  //   totalGameTime    legacy: seconds for the whole game, divided by the number of movies
+  //                    (only used when secondsPerMovie is not sent)
+  //   maxMovies, pointsPerMovie, reveal, cols, rows, uncoverFirstPct, coversPerUnblur, first
   router.post('/api/movies/start', (req, res) => {
-    const maxMovies = parseInt(req.body.maxMovies) || 5;
-    const totalGameTime = parseInt(req.body.totalGameTime) || 180;
-    const pointsPerMovie = parseInt(req.body.pointsPerMovie) || 500;
+    const body = req.body || {};
+    const saved = loadMovieSettings();
+    const hasSeconds = body.secondsPerMovie !== undefined && body.secondsPerMovie !== null && body.secondsPerMovie !== '';
+    const hasLegacy = !hasSeconds && parseInt(body.totalGameTime) > 0;
+    const s = normalizeMovieSettings(body, saved);
+    const maxMovies = s.maxMovies;
+    const pointsPerMovie = s.pointsPerMovie;
+    const revealOpts = revealOptions(s);
 
     if (!fs.existsSync(moviesDir)) return missingDir(res, 'Movies', moviesDir);
     try {
@@ -526,17 +584,18 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
       }
       stopReveal();
       const actualMax = Math.min(maxMovies, files.length);
-      const timePerMovie = Math.max(1, Math.floor(totalGameTime / actualMax));
+      const timePerMovie = hasLegacy ? Math.max(1, Math.floor(parseInt(body.totalGameTime) / actualMax)) : s.secondsPerMovie;
+      const totalGameTime = timePerMovie * actualMax;
       movieState = {
         active: true, currentMovie: null, revealLevel: 0, answered: false, answeredBy: null,
         players: {}, movieCount: 0, maxMovies: actualMax, usedMovies: [], availableMovies: files,
         pointsPerMovie, totalGameTime, timePerMovie, movieStartTime: null,
-        timeRemaining: timePerMovie, tileRevealOrder: []
+        timeRemaining: timePerMovie, tileRevealOrder: [], revealOptions: revealOpts
       };
       movieChatBuffer = [];
       console.log(`[Games] Movie game started: ${actualMax} movies, ${timePerMovie}s each, ${files.length} available`);
-      broadcast({ type: 'movie-started', data: { maxMovies: actualMax, timePerMovie } });
-      res.json({ success: true, totalMovies: files.length, maxMovies: actualMax, timePerMovie });
+      broadcast({ type: 'movie-started', data: { maxMovies: actualMax, timePerMovie, reveal: revealOpts } });
+      res.json({ success: true, totalMovies: files.length, maxMovies: actualMax, timePerMovie, totalGameTime, reveal: revealOpts });
     } catch (e) {
       console.error('[Games] Movie start error:', e.message);
       res.status(500).json({ error: e.message });
@@ -547,7 +606,7 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
     if (!movieState.active) return res.status(400).json({ error: 'No active movie game' });
     broadcast({
       type: 'movie-intro',
-      data: { maxMovies: movieState.maxMovies, pointsPerMovie: movieState.pointsPerMovie, timePerMovie: movieState.timePerMovie }
+      data: { maxMovies: movieState.maxMovies, pointsPerMovie: movieState.pointsPerMovie, timePerMovie: movieState.timePerMovie, reveal: movieState.revealOptions }
     });
     res.json({ success: true });
   });
@@ -579,7 +638,7 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
         movieNumber: movieState.movieCount, maxMovies: movieState.maxMovies,
         imagePath: movieState.currentMovie.path, revealLevel: 0,
         timePerMovie: movieState.timePerMovie, timeRemaining: movieState.timePerMovie,
-        pointsAvailable: movieState.pointsPerMovie, tileRevealOrder: movieState.tileRevealOrder
+        pointsAvailable: movieState.pointsPerMovie, tileRevealOrder: movieState.tileRevealOrder, reveal: movieState.revealOptions
       }
     });
 
@@ -698,4 +757,4 @@ function createGames({ broadcast, triviaDir, moviesDir, dataDir }) {
   return { router, handleChatMessage, close };
 }
 
-module.exports = { createGames };
+module.exports = { createGames, normalizeMovieSettings, MOVIE_SETTINGS_DEFAULTS };

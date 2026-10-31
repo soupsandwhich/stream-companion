@@ -119,7 +119,14 @@ const games = createGames({
   broadcast: (data) => broadcastToOverlays(data),
   triviaDir: CONFIG.triviaDir,
   moviesDir: CONFIG.moviesDir,
-  dataDir: CONFIG.gamesDataDir
+  dataDir: CONFIG.gamesDataDir,
+  movieSettingsStore: {
+    get: () => localSettings.movieSettings,
+    set: (s) => {
+      localSettings.movieSettings = s;
+      if (!saveLocalSettings(localSettings)) throw new Error('Could not write settings.json');
+    }
+  }
 });
 
 // Local WebSocket clients (overlays)
