@@ -46,9 +46,9 @@
       width: 1920px;
       height: 1080px;
       display: grid;
-      grid-template-columns: 300px 1fr 300px;
-      gap: 20px;
-      padding: 20px;
+      grid-template-columns: 260px 1fr 260px;
+      gap: 16px;
+      padding: 16px;
       opacity: 0;
       transition: opacity 0.5s ease;
     }
@@ -142,7 +142,7 @@
 
     #movie-header {
       background: linear-gradient(90deg, #FF8C00, #cc7000);
-      padding: 20px 30px;
+      padding: 12px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -220,19 +220,21 @@
 
     #movie-content {
       flex: 1;
+      min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 30px;
+      padding: 14px;
       position: relative;
     }
 
-    /* Movie image container - 16:9 aspect ratio */
+    /* Movie image container. fitImage() sizes it in JS to the largest box that
+       fits #movie-content at the image's own aspect ratio (no cropping). */
     #movie-image-container {
       position: relative;
       width: 100%;
-      max-width: 960px;
       aspect-ratio: 16/9;
+      flex: none;
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(255,140,0,0.2);
@@ -242,10 +244,23 @@
     #movie-image {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       filter: blur(50px) brightness(0.5);
       transition: filter 0.5s ease;
     }
+
+    /* Grid reveal mode: the image stays blurred underneath; each box fades in a
+       sharp copy of its slice of the image (unblur), and solid cover tiles sit on top. */
+    #movie-image-container.grid-mode #movie-image { transform: scale(1.08); } /* keeps blurred edges from fading out */
+    #movie-image-container.grid-mode.revealed #movie-image { transform: scale(1); }
+    #sharp-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+    .sharp {
+      position: absolute;
+      opacity: 0;
+      transition: opacity var(--reveal-fade, 0.8s) ease;
+      background-repeat: no-repeat;
+    }
+    .sharp.on { opacity: 1; }
 
     /* Tile overlay for blocking effect - 8x5 grid for 16:9 */
     #tile-overlay {
@@ -267,6 +282,8 @@
       opacity: 0;
       transform: scale(0.8) rotateY(90deg);
     }
+    .tile { z-index: 2; }
+    #movie-name-reveal { z-index: 3; }
 
     /* Movie name reveal */
     #movie-name-reveal {
@@ -566,6 +583,7 @@
         <div id="movie-content">
           <div id="movie-image-container">
             <img id="movie-image" src="" alt="">
+            <div id="sharp-overlay"></div>
             <div id="tile-overlay"></div>
             <div id="movie-name-reveal">
               <div id="movie-name-text"></div>
@@ -615,6 +633,7 @@
     }
 
     window.addEventListener('resize', updateScale);
+    window.addEventListener('load', () => { if (window.fitImage) fitImage(); });
     updateScale();
   </script>
 
@@ -631,6 +650,8 @@
     const movieImage = document.getElementById('movie-image');
     const movieImageContainer = document.getElementById('movie-image-container');
     const tileOverlay = document.getElementById('tile-overlay');
+    const sharpOverlay = document.getElementById('sharp-overlay');
+    const movieContent = document.getElementById('movie-content');
     const movieNameReveal = document.getElementById('movie-name-reveal');
     const movieNameText = document.getElementById('movie-name-text');
     const movieWinner = document.getElementById('movie-winner');
@@ -644,7 +665,27 @@
     let currentLeaderboard = {};
     let chatMessages = [];
     const MAX_CHAT_MESSAGES = 50;
-    const TOTAL_TILES = 40; // 8x5 grid
+    const TOTAL_TILES = 40; // 8x5 grid (classic mode)
+
+    // ---- Reveal options (set on the OBS browser source URL, e.g. movies.html?cols=5&rows=4&first=unblur) ----
+    //   reveal=grid|classic        grid (default): cover boxes come off first, then removing covers alternates
+    //                              with unblurring boxes. classic: old behaviour (global blur + 8x5 tiles)
+    //   cols, rows                 grid size for grid mode (default 5 x 4)
+    //   revealUncoverFirstPct      fraction of boxes uncovered (blurred) before unblurring starts (default 0.25)
+    //   first=cover|unblur         which step type starts the alternating phase (default cover)
+    const qs = new URLSearchParams(location.search);
+    const clampInt = (v, d, lo, hi) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+    const pctParam = parseFloat(qs.get('revealUncoverFirstPct'));
+    const OPT = {
+      mode: qs.get('reveal') === 'classic' ? 'classic' : 'grid',
+      cols: clampInt(qs.get('cols'), 5, 1, 16),
+      rows: clampInt(qs.get('rows'), 4, 1, 12),
+      first: qs.get('first') === 'unblur' ? 'unblur' : 'cover',
+      uncoverFirstPct: Number.isFinite(pctParam) ? Math.min(1, Math.max(0, pctParam)) : 0.25
+    };
+    let gridCells = [];   // { sharp, tile }
+    let gridPlan = [];    // ordered steps: { type: 'cover'|'unblur', cell }
+    let gridApplied = 0;  // number of plan steps currently applied
     let tileRevealOrder = [];
     let timePerMovie = 60;
     let tileElements = []; // Store tile elements directly
@@ -730,8 +771,9 @@
       movieProgress.textContent = `Movie ${data.movieNumber} of ${data.maxMovies}`;
 
       // Reset image state first
-      movieImage.style.filter = 'blur(50px) brightness(0.5)';
-      movieImageContainer.classList.remove('correct');
+      movieImage.style.filter = OPT.mode === 'grid' ? 'blur(40px) brightness(0.55)' : 'blur(50px) brightness(0.5)';
+      movieImageContainer.classList.remove('correct', 'revealed');
+      movieImageContainer.classList.toggle('grid-mode', OPT.mode === 'grid');
       movieNameReveal.classList.remove('show');
 
       // Store tile reveal order from server (must be before createTiles)
@@ -739,8 +781,8 @@
       timePerMovie = data.timePerMovie || 60;
 
 
-      // Create fresh tiles (all visible)
-      createTiles();
+      // Create fresh tiles / grid
+      if (OPT.mode === 'grid') buildGrid(); else createTiles();
 
       // Initialize timer and points display
       updateTimerDisplay(data.timeRemaining || timePerMovie);
@@ -748,10 +790,123 @@
       timerBox.classList.remove('warning');
 
       // Load image after everything is set up
+      movieImage.onload = () => { fitImage(); applyGridImage(); };
       movieImage.src = data.imagePath;
 
       gameLayout.classList.remove('hidden');
       gameLayout.classList.add('show');
+      fitImage();
+    }
+
+    // Size the image box to the biggest rectangle that fits the content area at the image's own aspect ratio.
+    function fitImage() {
+      const cs = getComputedStyle(movieContent);
+      const availW = movieContent.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const availH = movieContent.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (availW <= 0 || availH <= 0) return;
+      const ar = (movieImage.naturalWidth && movieImage.naturalHeight)
+        ? movieImage.naturalWidth / movieImage.naturalHeight : 16 / 9;
+      let w = availW, h = w / ar;
+      if (h > availH) { h = availH; w = h * ar; }
+      movieImageContainer.style.width = Math.floor(w) + 'px';
+      movieImageContainer.style.height = Math.floor(h) + 'px';
+      movieImageContainer.style.aspectRatio = 'auto';
+    }
+
+    // ---------- Grid reveal ----------
+    function shuffle(a) {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // Plan every step up front (random each movie). All boxes start covered, image blurred.
+    // Phase 1: remove covers until uncoverFirstPct of boxes are uncovered (showing the blurred image).
+    // Phase 2: alternate removing a cover / unblurring an already-uncovered blurred box.
+    // Unblur never touches a covered box. Total steps = 2 x boxes, all applied by level 100.
+    function planGrid(n) {
+      const coverQueue = shuffle(Array.from({ length: n }, (_, i) => i));
+      const blurred = []; // uncovered but still blurred
+      const plan = [];
+      const phase1 = Math.min(n, Math.max(1, Math.ceil(n * OPT.uncoverFirstPct - 1e-9)));
+      const doCover = () => {
+        const cell = coverQueue.shift();
+        plan.push({ type: 'cover', cell });
+        blurred.push(cell);
+      };
+      const doUnblur = () => {
+        const k = Math.floor(Math.random() * blurred.length);
+        plan.push({ type: 'unblur', cell: blurred.splice(k, 1)[0] });
+      };
+      for (let i = 0; i < phase1 && coverQueue.length; i++) doCover();
+      let want = OPT.first;
+      while (coverQueue.length || blurred.length) {
+        if (want === 'cover' && !coverQueue.length) want = 'unblur';
+        if (want === 'unblur' && !blurred.length) want = 'cover';
+        if (want === 'cover') { doCover(); want = 'unblur'; }
+        else { doUnblur(); want = 'cover'; }
+      }
+      return plan;
+    }
+
+    function buildGrid() {
+      const { cols, rows } = OPT;
+      const n = cols * rows;
+      tileOverlay.innerHTML = '';
+      sharpOverlay.innerHTML = '';
+      tileElements = [];
+      gridCells = [];
+      gridApplied = 0;
+      gridPlan = planGrid(n);
+      const secondsPerStep = timePerMovie / Math.max(1, gridPlan.length);
+      movieImageContainer.style.setProperty('--reveal-fade', Math.min(1.2, Math.max(0.4, secondsPerStep * 0.8)) + 's');
+      for (let i = 0; i < n; i++) {
+        const c = i % cols, r = Math.floor(i / cols);
+        const geo = {
+          left: (c * 100 / cols) + '%', top: (r * 100 / rows) + '%',
+          width: (100 / cols) + '%', height: (100 / rows) + '%'
+        };
+        const sharp = document.createElement('div');
+        sharp.className = 'sharp';
+        Object.assign(sharp.style, geo);
+        sharp.style.backgroundSize = (cols * 100) + '% ' + (rows * 100) + '%';
+        sharp.style.backgroundPosition = (cols > 1 ? c * 100 / (cols - 1) : 0) + '% ' + (rows > 1 ? r * 100 / (rows - 1) : 0) + '%';
+        sharpOverlay.appendChild(sharp);
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        Object.assign(tile.style, geo);
+        tileOverlay.appendChild(tile);
+        gridCells[i] = { sharp, tile };
+      }
+      applyGridImage();
+    }
+
+    function applyGridImage() {
+      if (!movieImage.src || OPT.mode !== 'grid') return;
+      const url = 'url(' + JSON.stringify(movieImage.src) + ')';
+      gridCells.forEach(c => { c.sharp.style.backgroundImage = url; });
+    }
+
+    function applyGridStep(step) {
+      const cell = gridCells[step.cell];
+      if (!cell) return;
+      if (step.type === 'cover') cell.tile.classList.add('hidden');
+      else cell.sharp.classList.add('on');
+    }
+
+    function updateGridReveal(level) {
+      const target = Math.min(gridPlan.length, Math.floor((level / 100) * gridPlan.length + 1e-9));
+      while (gridApplied < target) applyGridStep(gridPlan[gridApplied++]);
+    }
+
+    function revealAll() {
+      movieImage.style.filter = 'blur(0px) brightness(1)';
+      movieImageContainer.classList.add('revealed');
+      tileOverlay.querySelectorAll('.tile').forEach(t => t.classList.add('hidden'));
+      sharpOverlay.querySelectorAll('.sharp').forEach(t => t.classList.add('on'));
+      gridApplied = gridPlan.length;
     }
 
     function updateTimerDisplay(seconds) {
@@ -807,7 +962,13 @@
         pointsValue.textContent = data.pointsAvailable;
       }
 
-      // Update blur (50px at 0%, 0px at 100%)
+      if (OPT.mode === 'grid') {
+        updateGridReveal(level);
+        if (level >= 100) revealAll();
+        return;
+      }
+
+      // Classic: update blur (50px at 0%, 0px at 100%)
       const blur = Math.max(0, 50 - (level / 100 * 50));
       const brightness = 0.5 + (level / 100 * 0.5);
       movieImage.style.filter = `blur(${blur}px) brightness(${brightness})`;
@@ -832,8 +993,7 @@
 
     function showCorrect(data) {
       // Fully reveal
-      movieImage.style.filter = 'blur(0px) brightness(1)';
-      tileOverlay.querySelectorAll('.tile').forEach(t => t.classList.add('hidden'));
+      revealAll();
 
       // Update timer to show time remaining when answered
       if (data.timeRemaining !== undefined) {
@@ -857,8 +1017,7 @@
     }
 
     function showTimeout(data) {
-      movieImage.style.filter = 'blur(0px) brightness(1)';
-      tileOverlay.querySelectorAll('.tile').forEach(t => t.classList.add('hidden'));
+      revealAll();
 
       // Show 0:00 and 0 points
       updateTimerDisplay(0);
