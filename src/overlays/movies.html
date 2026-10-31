@@ -674,12 +674,15 @@
     //   revealUncoverFirstPct      fraction of boxes uncovered (blurred) before unblurring starts (default 0.25)
     //   first=cover|unblur         which step type starts the alternating phase (default cover)
     //   coversPerUnblur            covers removed for each unblur in the alternating phase (default 2)
+    //   blurPx                     blur on the unrevealed picture, 0-50, measured for a 960x540 picture and
+    //                              scaled to the real picture size (default 6; classic mode fades it to 0)
     const qs = new URLSearchParams(location.search);
     const clampInt = (v, d, lo, hi) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
     const pctParam = parseFloat(qs.get('revealUncoverFirstPct'));
     // Normal path: the app's Movies page saves these and the server sends them with every game message
     // (data.reveal). URL params, when present, override the app settings.
-    const OPT = { mode: 'grid', cols: 16, rows: 10, first: 'cover', uncoverFirstPct: 0.25, coversPerUnblur: 2 };
+    const OPT = { mode: 'grid', cols: 16, rows: 10, first: 'cover', uncoverFirstPct: 0.25, coversPerUnblur: 2, blurPx: 6 };
+    const BLUR_REF_SIZE = Math.sqrt(960 * 540); // a 960x540 picture (the old overlay size)
     function applyRevealSettings(r) {
       r = r || {};
       const has = (k) => qs.has(k);
@@ -692,6 +695,17 @@
         if (Number.isFinite(p)) OPT.uncoverFirstPct = Math.min(1, Math.max(0, p));
       }
       if (!has('coversPerUnblur') && r.coversPerUnblur !== undefined) OPT.coversPerUnblur = clampInt(r.coversPerUnblur, OPT.coversPerUnblur, 1, 10);
+      if (!has('blurPx') && r.blurPx !== undefined) OPT.blurPx = clampInt(r.blurPx, OPT.blurPx, 0, 50);
+    }
+    // Blur in real px: the setting is for a 960x540 picture; other sizes and shapes (tall posters) scale by
+    // the picture's linear size (sqrt of its area), so the blur looks the same relative to the picture.
+    function blurFor(amount) {
+      const w = movieImageContainer.clientWidth, h = movieImageContainer.clientHeight;
+      const size = (w && h) ? Math.sqrt(w * h) : BLUR_REF_SIZE;
+      return Math.round(amount * (size / BLUR_REF_SIZE) * 10) / 10;
+    }
+    function unrevealedFilter() {
+      return `blur(${blurFor(OPT.blurPx)}px) brightness(${OPT.mode === 'grid' ? 0.55 : 0.5})`;
     }
     // URL overrides (also the starting values before any game message arrives)
     if (qs.has('reveal')) OPT.mode = qs.get('reveal') === 'classic' ? 'classic' : 'grid';
@@ -700,6 +714,7 @@
     if (qs.has('first')) OPT.first = qs.get('first') === 'unblur' ? 'unblur' : 'cover';
     if (Number.isFinite(pctParam)) OPT.uncoverFirstPct = Math.min(1, Math.max(0, pctParam));
     if (qs.has('coversPerUnblur')) OPT.coversPerUnblur = clampInt(qs.get('coversPerUnblur'), OPT.coversPerUnblur, 1, 10);
+    if (qs.has('blurPx')) OPT.blurPx = clampInt(qs.get('blurPx'), OPT.blurPx, 0, 50);
     let gridCells = [];   // { sharp, tile }
     let gridPlan = [];    // ordered steps: { type: 'cover'|'unblur', cell }
     let gridApplied = 0;  // number of plan steps currently applied
@@ -740,6 +755,13 @@
           showMovie(data.data);
           chatMessages = [];
           clearChat();
+          break;
+
+        case 'movie-options': // settings changed mid-game: blur takes effect right away
+          applyRevealSettings(data.data && data.data.reveal);
+          if (movieImageContainer.classList.contains('grid-mode') && !movieImageContainer.classList.contains('revealed') && !movieImageContainer.classList.contains('correct')) {
+            movieImage.style.filter = unrevealedFilter();
+          }
           break;
 
         case 'movie-reveal':
@@ -789,7 +811,7 @@
       movieProgress.textContent = `Movie ${data.movieNumber} of ${data.maxMovies}`;
 
       // Reset image state first
-      movieImage.style.filter = OPT.mode === 'grid' ? 'blur(40px) brightness(0.55)' : 'blur(50px) brightness(0.5)';
+      movieImage.style.filter = unrevealedFilter();
       movieImageContainer.classList.remove('correct', 'revealed');
       movieImageContainer.classList.toggle('grid-mode', OPT.mode === 'grid');
       movieNameReveal.classList.remove('show');
@@ -808,7 +830,11 @@
       timerBox.classList.remove('warning');
 
       // Load image after everything is set up
-      movieImage.onload = () => { fitImage(); applyGridImage(); };
+      movieImage.onload = () => {
+        fitImage(); applyGridImage();
+        // the picture size is known now, so re-scale the blur to it (unless already revealed)
+        if (!movieImageContainer.classList.contains('revealed') && !movieImageContainer.classList.contains('correct') && gridApplied === 0) movieImage.style.filter = unrevealedFilter();
+      };
       movieImage.src = data.imagePath;
 
       gameLayout.classList.remove('hidden');
@@ -989,8 +1015,8 @@
         return;
       }
 
-      // Classic: update blur (50px at 0%, 0px at 100%)
-      const blur = Math.max(0, 50 - (level / 100 * 50));
+      // Classic: update blur (blurPx at 0%, 0px at 100%)
+      const blur = Math.max(0, blurFor(OPT.blurPx) * (1 - level / 100));
       const brightness = 0.5 + (level / 100 * 0.5);
       movieImage.style.filter = `blur(${blur}px) brightness(${brightness})`;
 

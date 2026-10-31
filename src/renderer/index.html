@@ -118,6 +118,16 @@
       outline: none;
       border-color: #e94560;
     }
+    .movie-settings-details { border: 1px solid #1a4a7a; border-radius: 8px; background: rgba(15,52,96,0.25); }
+    .movie-settings-details > summary { cursor: pointer; padding: 10px 12px; color: #FF8C00; font-weight: 600; list-style: none; user-select: none; }
+    .movie-settings-details > summary::-webkit-details-marker { display: none; }
+    .movie-settings-details > summary::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform 0.15s; }
+    .movie-settings-details[open] > summary::before { transform: rotate(90deg); }
+    .movie-settings-summary { color: #aaa; font-weight: 400; font-size: 12px; margin-left: 8px; }
+    .movie-settings-details[open] .movie-settings-summary { display: none; }
+    .movie-settings-body { padding: 4px 12px 12px; }
+    .movie-settings-sub { margin: 18px 0 10px; color: #FF8C00; font-size: 15px; }
+    .input-group input.movie-range { padding: 0; height: 22px; border: none; background: transparent; accent-color: #FF8C00; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
     .empty-state {
       text-align: center;
@@ -739,65 +749,75 @@
             <div class="trivia-controls-row">
               <div class="card">
                 <h3>Game Controls</h3>
-                <div class="input-group">
-                  <label>Number of Movies</label>
-                  <select id="movie-count">
-                    <option value="3">3 Movies</option>
-                    <option value="5" selected>5 Movies</option>
-                    <option value="7">7 Movies</option>
-                    <option value="10">10 Movies</option>
-                  </select>
-                </div>
-                <div class="input-group">
-                  <label>Time per Movie (seconds, 5-600)</label>
-                  <input type="number" id="movie-seconds" min="5" max="600" step="1" value="36" onchange="saveMovieSettings()">
-                  <div style="color:#888;font-size:12px;margin-top:4px;">The picture finishes revealing over this time. Longer = slower uncover.</div>
-                </div>
-                <div class="input-group">
-                  <label>Max Points per Movie</label>
-                  <select id="movie-points">
-                    <option value="100">100 Points</option>
-                    <option value="250">250 Points</option>
-                    <option value="500" selected>500 Points</option>
-                    <option value="1000">1000 Points</option>
-                  </select>
-                </div>
-                <h3 style="margin-top:20px;">Reveal Settings</h3>
-                <div class="input-group">
-                  <label>Reveal Mode</label>
-                  <select id="movie-reveal" onchange="saveMovieSettings()">
-                    <option value="grid" selected>Grid (cover boxes + unblur)</option>
-                    <option value="classic">Classic (blur + 8x5 tiles)</option>
-                  </select>
-                </div>
-                <div class="input-group">
-                  <label>Grid Size (columns x rows, max 16 x 16)</label>
-                  <div style="display:flex;gap:8px;align-items:center;">
-                    <input type="number" id="movie-cols" min="1" max="16" step="1" value="16" style="width:80px;" onchange="saveMovieSettings()">
-                    <span>x</span>
-                    <input type="number" id="movie-rows" min="1" max="16" step="1" value="10" style="width:80px;" onchange="saveMovieSettings()">
-                  </div>
-                </div>
-                <div class="input-group">
-                  <label>Uncover First (% of boxes before unblurring starts)</label>
-                  <input type="number" id="movie-uncover-pct" min="0" max="100" step="1" value="25" onchange="saveMovieSettings()">
-                </div>
-                <div class="input-group">
-                  <label>Covers per Unblur</label>
-                  <input type="number" id="movie-covers-per-unblur" min="1" max="10" step="1" value="2" onchange="saveMovieSettings()">
-                </div>
-                <div class="input-group">
-                  <label>First Step After the Uncover Phase</label>
-                  <select id="movie-first" onchange="saveMovieSettings()">
-                    <option value="cover" selected>Remove a cover</option>
-                    <option value="unblur">Unblur a box</option>
-                  </select>
-                </div>
-                <div id="movie-settings-note" style="color:#888;font-size:12px;min-height:16px;">Saved automatically.</div>
-                <div style="display:flex;gap:10px;margin-top:20px;">
+                <div style="display:flex;gap:10px;margin-bottom:15px;">
                   <button class="btn" onclick="startMovieGame()">Start Game</button>
                   <button class="btn btn-secondary" onclick="endMovieGame()">End Game</button>
                 </div>
+                <details id="movie-settings-details" class="movie-settings-details">
+                  <summary>Movie Game Settings <span id="movie-settings-summary" class="movie-settings-summary"></span></summary>
+                  <div class="movie-settings-body">
+                    <div class="input-group">
+                      <label>Number of Movies</label>
+                      <select id="movie-count" onchange="saveMovieSettings()">
+                        <option value="3">3 Movies</option>
+                        <option value="5" selected>5 Movies</option>
+                        <option value="7">7 Movies</option>
+                        <option value="10">10 Movies</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>Time per Movie (seconds, 5-600)</label>
+                      <input type="number" id="movie-seconds" min="5" max="600" step="1" value="36" onchange="saveMovieSettings()">
+                      <div style="color:#888;font-size:12px;margin-top:4px;">The picture finishes revealing over this time. Longer = slower uncover.</div>
+                    </div>
+                    <div class="input-group">
+                      <label>Max Points per Movie</label>
+                      <select id="movie-points" onchange="saveMovieSettings()">
+                        <option value="100">100 Points</option>
+                        <option value="250">250 Points</option>
+                        <option value="500" selected>500 Points</option>
+                        <option value="1000">1000 Points</option>
+                      </select>
+                    </div>
+                    <h4 class="movie-settings-sub">Reveal Settings</h4>
+                    <div class="input-group">
+                      <label>Reveal Mode</label>
+                      <select id="movie-reveal" onchange="saveMovieSettings()">
+                        <option value="grid" selected>Grid (cover boxes + unblur)</option>
+                        <option value="classic">Classic (blur + 8x5 tiles)</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>Grid Size (columns x rows, max 16 x 16)</label>
+                      <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="number" id="movie-cols" min="1" max="16" step="1" value="16" style="width:80px;" onchange="saveMovieSettings()">
+                        <span>x</span>
+                        <input type="number" id="movie-rows" min="1" max="16" step="1" value="10" style="width:80px;" onchange="saveMovieSettings()">
+                      </div>
+                    </div>
+                    <div class="input-group">
+                      <label>Uncover First (% of boxes before unblurring starts)</label>
+                      <input type="number" id="movie-uncover-pct" min="0" max="100" step="1" value="25" onchange="saveMovieSettings()">
+                    </div>
+                    <div class="input-group">
+                      <label>Covers per Unblur</label>
+                      <input type="number" id="movie-covers-per-unblur" min="1" max="10" step="1" value="2" onchange="saveMovieSettings()">
+                    </div>
+                    <div class="input-group">
+                      <label>First Step After the Uncover Phase</label>
+                      <select id="movie-first" onchange="saveMovieSettings()">
+                        <option value="cover" selected>Remove a cover</option>
+                        <option value="unblur">Unblur a box</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>Blur (<span id="movie-blur-value">6</span> px)</label>
+                      <input type="range" id="movie-blur" class="movie-range" min="0" max="50" step="1" value="6" oninput="movieBlurInput()" onchange="saveMovieSettings()">
+                      <div style="color:#888;font-size:12px;margin-top:4px;">Low = you can still see shapes through it. Applies right away and to the next movie. Measured for a 960x540 picture; the overlay scales it to the real picture size.</div>
+                    </div>
+                    <div id="movie-settings-note" style="color:#888;font-size:12px;min-height:16px;">Saved automatically.</div>
+                  </div>
+                </details>
               </div>
               <div class="card">
                 <h3>Movie Library</h3>
@@ -2649,9 +2669,30 @@
         rows: parseInt(document.getElementById('movie-rows').value),
         uncoverFirstPct: Number.isFinite(pct) ? pct / 100 : undefined,
         coversPerUnblur: parseInt(document.getElementById('movie-covers-per-unblur').value),
-        first: document.getElementById('movie-first').value
+        first: document.getElementById('movie-first').value,
+        blurPx: parseInt(document.getElementById('movie-blur').value)
       };
     }
+
+    function movieBlurInput() {
+      document.getElementById('movie-blur-value').textContent = document.getElementById('movie-blur').value;
+      updateMovieSettingsSummary();
+    }
+
+    // One line shown while the settings section is collapsed
+    function updateMovieSettingsSummary() {
+      const g = (id) => document.getElementById(id).value;
+      const mode = g('movie-reveal') === 'classic' ? 'Classic' : g('movie-cols') + '×' + g('movie-rows') + ' grid';
+      document.getElementById('movie-settings-summary').textContent =
+        mode + ' · ' + g('movie-seconds') + ' s/movie · blur ' + g('movie-blur') + 'px · ' + g('movie-count') + ' movies · ' + g('movie-points') + ' pts';
+    }
+
+    // Remember whether the section is open (per-viewer convenience only)
+    (function initMovieSettingsDetails() {
+      const d = document.getElementById('movie-settings-details');
+      try { d.open = localStorage.getItem('movieSettingsOpen') === '1'; } catch (e) {}
+      d.addEventListener('toggle', () => { try { localStorage.setItem('movieSettingsOpen', d.open ? '1' : '0'); } catch (e) {} });
+    })();
 
     function fillMovieSettingsForm(s) {
       const setSelect = (id, v) => {
@@ -2668,6 +2709,9 @@
       document.getElementById('movie-uncover-pct').value = Math.round(s.uncoverFirstPct * 100);
       document.getElementById('movie-covers-per-unblur').value = s.coversPerUnblur;
       document.getElementById('movie-first').value = s.first;
+      document.getElementById('movie-blur').value = s.blurPx;
+      document.getElementById('movie-blur-value').textContent = s.blurPx;
+      updateMovieSettingsSummary();
     }
 
     async function loadMovieSettings() {
