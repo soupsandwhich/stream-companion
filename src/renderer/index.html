@@ -749,14 +749,9 @@
                   </select>
                 </div>
                 <div class="input-group">
-                  <label>Total Game Time</label>
-                  <select id="movie-game-time">
-                    <option value="60">1 Minute</option>
-                    <option value="120">2 Minutes</option>
-                    <option value="180" selected>3 Minutes</option>
-                    <option value="240">4 Minutes</option>
-                    <option value="300">5 Minutes</option>
-                  </select>
+                  <label>Time per Movie (seconds, 5-600)</label>
+                  <input type="number" id="movie-seconds" min="5" max="600" step="1" value="36" onchange="saveMovieSettings()">
+                  <div style="color:#888;font-size:12px;margin-top:4px;">The picture finishes revealing over this time. Longer = slower uncover.</div>
                 </div>
                 <div class="input-group">
                   <label>Max Points per Movie</label>
@@ -767,6 +762,38 @@
                     <option value="1000">1000 Points</option>
                   </select>
                 </div>
+                <h3 style="margin-top:20px;">Reveal Settings</h3>
+                <div class="input-group">
+                  <label>Reveal Mode</label>
+                  <select id="movie-reveal" onchange="saveMovieSettings()">
+                    <option value="grid" selected>Grid (cover boxes + unblur)</option>
+                    <option value="classic">Classic (blur + 8x5 tiles)</option>
+                  </select>
+                </div>
+                <div class="input-group">
+                  <label>Grid Size (columns x rows, max 16 x 16)</label>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="number" id="movie-cols" min="1" max="16" step="1" value="16" style="width:80px;" onchange="saveMovieSettings()">
+                    <span>x</span>
+                    <input type="number" id="movie-rows" min="1" max="16" step="1" value="10" style="width:80px;" onchange="saveMovieSettings()">
+                  </div>
+                </div>
+                <div class="input-group">
+                  <label>Uncover First (% of boxes before unblurring starts)</label>
+                  <input type="number" id="movie-uncover-pct" min="0" max="100" step="1" value="25" onchange="saveMovieSettings()">
+                </div>
+                <div class="input-group">
+                  <label>Covers per Unblur</label>
+                  <input type="number" id="movie-covers-per-unblur" min="1" max="10" step="1" value="2" onchange="saveMovieSettings()">
+                </div>
+                <div class="input-group">
+                  <label>First Step After the Uncover Phase</label>
+                  <select id="movie-first" onchange="saveMovieSettings()">
+                    <option value="cover" selected>Remove a cover</option>
+                    <option value="unblur">Unblur a box</option>
+                  </select>
+                </div>
+                <div id="movie-settings-note" style="color:#888;font-size:12px;min-height:16px;">Saved automatically.</div>
                 <div style="display:flex;gap:10px;margin-top:20px;">
                   <button class="btn" onclick="startMovieGame()">Start Game</button>
                   <button class="btn btn-secondary" onclick="endMovieGame()">End Game</button>
@@ -2519,6 +2546,7 @@
         }
         if (this.dataset.page === 'movies') {
           refreshMovieLibrary();
+          loadMovieSettings();
           loadMovieState();
         }
       });
@@ -2609,20 +2637,78 @@
       `).join('');
     }
 
-    async function startMovieGame() {
-      const maxMovies = document.getElementById('movie-count').value;
-      const pointsPerMovie = document.getElementById('movie-points').value;
-      const totalGameTime = document.getElementById('movie-game-time').value;
+    // Movie settings live on the local server (settings.json); the form just edits them.
+    function readMovieSettingsForm() {
+      const pct = parseFloat(document.getElementById('movie-uncover-pct').value);
+      return {
+        maxMovies: parseInt(document.getElementById('movie-count').value),
+        pointsPerMovie: parseInt(document.getElementById('movie-points').value),
+        secondsPerMovie: parseInt(document.getElementById('movie-seconds').value),
+        reveal: document.getElementById('movie-reveal').value,
+        cols: parseInt(document.getElementById('movie-cols').value),
+        rows: parseInt(document.getElementById('movie-rows').value),
+        uncoverFirstPct: Number.isFinite(pct) ? pct / 100 : undefined,
+        coversPerUnblur: parseInt(document.getElementById('movie-covers-per-unblur').value),
+        first: document.getElementById('movie-first').value
+      };
+    }
 
+    function fillMovieSettingsForm(s) {
+      const setSelect = (id, v) => {
+        const el = document.getElementById(id);
+        if (![...el.options].some(o => o.value === String(v))) el.add(new Option(String(v), String(v)));
+        el.value = String(v);
+      };
+      setSelect('movie-count', s.maxMovies);
+      setSelect('movie-points', s.pointsPerMovie);
+      document.getElementById('movie-seconds').value = s.secondsPerMovie;
+      document.getElementById('movie-reveal').value = s.reveal;
+      document.getElementById('movie-cols').value = s.cols;
+      document.getElementById('movie-rows').value = s.rows;
+      document.getElementById('movie-uncover-pct').value = Math.round(s.uncoverFirstPct * 100);
+      document.getElementById('movie-covers-per-unblur').value = s.coversPerUnblur;
+      document.getElementById('movie-first').value = s.first;
+    }
+
+    async function loadMovieSettings() {
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/settings');
+        const data = await res.json();
+        if (data.settings) fillMovieSettingsForm(data.settings);
+      } catch (e) {
+        console.error('Error loading movie settings:', e);
+      }
+    }
+
+    async function saveMovieSettings() {
+      const note = document.getElementById('movie-settings-note');
+      try {
+        const res = await fetch('http://localhost:8877/api/movies/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(readMovieSettingsForm())
+        });
+        const data = await res.json();
+        if (data.success) {
+          fillMovieSettingsForm(data.settings); // shows any clamping
+          note.style.color = '#4caf50';
+          note.textContent = 'Saved.';
+        } else {
+          note.style.color = '#f44336';
+          note.textContent = data.error || 'Could not save settings';
+        }
+      } catch (e) {
+        note.style.color = '#f44336';
+        note.textContent = 'Could not save settings';
+      }
+    }
+
+    async function startMovieGame() {
       try {
         const res = await fetch('http://localhost:8877/api/movies/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            maxMovies: parseInt(maxMovies),
-            pointsPerMovie: parseInt(pointsPerMovie),
-            totalGameTime: parseInt(totalGameTime)
-          })
+          body: JSON.stringify(readMovieSettingsForm())
         });
         const data = await res.json();
 

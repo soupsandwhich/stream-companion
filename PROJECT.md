@@ -112,3 +112,23 @@ holds 1.3.2 (live feed: 1.4.0).
   tokens, and `sounds/`). Never commit it.
 - `src/server/index.js` is the old standalone server and is dead code. It was
   kept in the payload so the rebuild matches 1.3.2.
+
+## Movie game settings and API
+
+Movie settings are edited on the Movies page (Game Controls + Reveal Settings) and saved to
+`%APPDATA%\StreamCompanion\settings.json` under `movieSettings`. `GET/POST /api/movies/settings`
+read and write them. The server sends the reveal options to the overlay inside `movie-started`,
+`movie-intro` and `movie-question` (`data.reveal`); URL params on the OBS browser source still
+override them (`reveal`, `cols`, `rows`, `first`, `revealUncoverFirstPct`, `coversPerUnblur`).
+
+`POST /api/movies/start` body (every field optional; omitted fields use the saved settings, and a
+start call never overwrites the saved settings):
+
+- `secondsPerMovie` (5-600): seconds each movie takes to reveal. Default 36.
+- `totalGameTime`: legacy. Only used when `secondsPerMovie` is absent; per-movie time is
+  `floor(totalGameTime / movies played)`, as before.
+- `maxMovies`, `pointsPerMovie`
+- `reveal` (`grid`|`classic`), `cols` (1-16), `rows` (1-16), `uncoverFirstPct` (0-1),
+  `coversPerUnblur` (1-10), `first` (`cover`|`unblur`)
+
+Defaults: 5 movies, 500 points, 36 s, grid 16x10, 0.25, 2, cover.
