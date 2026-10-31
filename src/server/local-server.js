@@ -55,7 +55,7 @@ const soundUpload = multer({
       cb(new Error('Only .mp3, .wav, .ogg files allowed'));
     }
   },
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB max (local disk only)
 });
 
 // Local settings file (persists across updates)
@@ -603,7 +603,8 @@ app.post('/api/sounds/upload', (req, res, next) => {
   soundUpload.array('sounds', 20)(req, res, (err) => {
     if (err) {
       console.error('[LocalServer] Upload error:', err);
-      return res.status(400).json({ success: false, error: err.message || 'Upload failed' });
+      const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 200 MB per sound)' : (err.message || 'Upload failed');
+      return res.status(400).json({ success: false, error: msg });
     }
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, error: 'No files selected' });
