@@ -670,18 +670,20 @@
     // ---- Reveal options (set on the OBS browser source URL, e.g. movies.html?cols=5&rows=4&first=unblur) ----
     //   reveal=grid|classic        grid (default): cover boxes come off first, then removing covers alternates
     //                              with unblurring boxes. classic: old behaviour (global blur + 8x5 tiles)
-    //   cols, rows                 grid size for grid mode (default 5 x 4)
+    //   cols, rows                 grid size for grid mode (default 8 x 5)
     //   revealUncoverFirstPct      fraction of boxes uncovered (blurred) before unblurring starts (default 0.25)
     //   first=cover|unblur         which step type starts the alternating phase (default cover)
+    //   coversPerUnblur            covers removed for each unblur in the alternating phase (default 2)
     const qs = new URLSearchParams(location.search);
     const clampInt = (v, d, lo, hi) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
     const pctParam = parseFloat(qs.get('revealUncoverFirstPct'));
     const OPT = {
       mode: qs.get('reveal') === 'classic' ? 'classic' : 'grid',
-      cols: clampInt(qs.get('cols'), 5, 1, 16),
-      rows: clampInt(qs.get('rows'), 4, 1, 12),
+      cols: clampInt(qs.get('cols'), 8, 1, 16),
+      rows: clampInt(qs.get('rows'), 5, 1, 12),
       first: qs.get('first') === 'unblur' ? 'unblur' : 'cover',
-      uncoverFirstPct: Number.isFinite(pctParam) ? Math.min(1, Math.max(0, pctParam)) : 0.25
+      uncoverFirstPct: Number.isFinite(pctParam) ? Math.min(1, Math.max(0, pctParam)) : 0.25,
+      coversPerUnblur: clampInt(qs.get('coversPerUnblur'), 2, 1, 10)
     };
     let gridCells = [];   // { sharp, tile }
     let gridPlan = [];    // ordered steps: { type: 'cover'|'unblur', cell }
@@ -841,12 +843,15 @@
         plan.push({ type: 'unblur', cell: blurred.splice(k, 1)[0] });
       };
       for (let i = 0; i < phase1 && coverQueue.length; i++) doCover();
-      let want = OPT.first;
+      // Phase 2: OPT.coversPerUnblur covers for every unblur, then the remaining unblurs.
+      let coversSinceUnblur = OPT.first === 'unblur' ? OPT.coversPerUnblur : 0;
       while (coverQueue.length || blurred.length) {
-        if (want === 'cover' && !coverQueue.length) want = 'unblur';
-        if (want === 'unblur' && !blurred.length) want = 'cover';
-        if (want === 'cover') { doCover(); want = 'unblur'; }
-        else { doUnblur(); want = 'cover'; }
+        const unblurTurn = coversSinceUnblur >= OPT.coversPerUnblur;
+        if ((unblurTurn && blurred.length) || !coverQueue.length) {
+          doUnblur(); coversSinceUnblur = 0;
+        } else {
+          doCover(); coversSinceUnblur++;
+        }
       }
       return plan;
     }
