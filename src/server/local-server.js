@@ -218,6 +218,7 @@ function handleChatCommand(msg) {
   // Check custom commands/triggers
   const customCommands = getCustomCommands();
   for (const cmd of customCommands) {
+    if (cmd.triggerType === 'reward') continue; // channel point commands only fire on redemptions
     const trigger = (cmd.trigger || cmd.name || '').toLowerCase();
     if (!trigger) continue;
 
@@ -262,6 +263,63 @@ function handleChatCommand(msg) {
   }
 }
 
+// ========== CHANNEL POINT REDEMPTIONS ==========
+// Redemptions arrive from Tower as twitch-event { type: 'redemption',
+// data: { user, reward, input, rewardId?, redemptionId? } }. Older Tower builds
+// only send the reward title, so commands match on rewardId when both sides
+// have one and fall back to a case-insensitive title match.
+const seenRewards = new Map();      // key -> { id, title, cost }
+const handledRedemptions = new Map(); // redemptionId -> timestamp (dedupe on reconnect)
+
+function rememberReward(d) {
+  if (!d || !d.reward) return;
+  seenRewards.set(d.rewardId || d.reward.toLowerCase(), { id: d.rewardId || null, title: d.reward, cost: d.cost ?? null });
+}
+
+function handleRedemption(event) {
+  const d = event && event.data;
+  if (!d || !d.reward) return;
+  rememberReward(d);
+
+  const settings = getCommandSettings();
+  if (!settings.enabled) return;
+
+  if (d.redemptionId) {
+    if (handledRedemptions.has(d.redemptionId)) return;
+    handledRedemptions.set(d.redemptionId, Date.now());
+    if (handledRedemptions.size > 200) handledRedemptions.delete(handledRedemptions.keys().next().value);
+  }
+
+  const user = d.user || 'Someone';
+  const input = d.input || '';
+  const titleLower = String(d.reward).toLowerCase();
+
+  for (const cmd of getCustomCommands()) {
+    if (cmd.triggerType !== 'reward') continue;
+    const idMatch = cmd.rewardId && d.rewardId && cmd.rewardId === d.rewardId;
+    const titleMatch = !(cmd.rewardId && d.rewardId) && cmd.rewardTitle && cmd.rewardTitle.toLowerCase() === titleLower;
+    if (!idMatch && !titleMatch) continue;
+
+    console.log(`[Reward] ${user} redeemed "${d.reward}"${input ? ' with input' : ''}`);
+    switch (cmd.action) {
+      case 'sound':
+        broadcastToOverlays({ type: 'play-sound', data: { sound: cmd.value, user, input } });
+        break;
+      case 'alert':
+        broadcastToOverlays({ type: 'new-alert', data: {
+          type: cmd.value,
+          message: `${user} redeemed ${d.reward}!`,
+          subtext: input,
+          name: user,
+          input,
+          isManual: true
+        }});
+        break;
+    }
+    return; // first matching command only, same as chat triggers
+  }
+}
+
 // ========== SYNC CLIENT ==========
 const syncClient = new SyncClient({
   serverUrl: CONFIG.remoteWsUrl,
@@ -291,6 +349,13 @@ const syncClient = new SyncClient({
 
   onTwitchEvent: (event) => {
     broadcastToOverlays({ type: 'twitch-event', data: event });
+    if (event && event.type === 'redemption') {
+      try {
+        handleRedemption(event);
+      } catch (e) {
+        console.error('[LocalServer] Redemption handler error:', e);
+      }
+    }
   },
 
   onConnectionChange: (connected) => {
@@ -659,6 +724,32 @@ app.post('/api/sounds/alerts', (req, res) => {
 
 // ========== COMMANDS MANAGEMENT ==========
 
+// Channel point rewards for the trigger picker: live list from Tower
+// (Twitch API), merged with rewards seen in recent redemptions.
+app.get('/api/rewards', async (req, res) => {
+  const byKey = new Map();
+  let source = 'none';
+  let error = null;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    const r = await fetch(`${CONFIG.remoteApiUrl}/api/twitch/rewards`, { signal: ctl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error(r.status === 404 ? 'Tower has no rewards endpoint yet' : `Tower returned ${r.status}`);
+    const data = await r.json();
+    for (const rw of data.rewards || []) byKey.set(rw.id, { id: rw.id, title: rw.title, cost: rw.cost ?? null, enabled: rw.enabled !== false });
+    source = 'twitch';
+  } catch (e) {
+    error = e.name === 'AbortError' ? 'Tower did not respond' : e.message;
+  }
+  for (const rw of seenRewards.values()) {
+    const dup = [...byKey.values()].some(x => (rw.id && x.id === rw.id) || x.title.toLowerCase() === rw.title.toLowerCase());
+    if (!dup) byKey.set(rw.id || rw.title, { ...rw, seenOnly: true });
+  }
+  if (source === 'none' && byKey.size) source = 'seen';
+  res.json({ rewards: [...byKey.values()], source, error });
+});
+
 // Get commands and settings
 app.get('/api/commands', (req, res) => {
   res.json({
@@ -689,10 +780,17 @@ app.post('/api/commands', (req, res) => {
   const cmd = {
     id: Date.now().toString(),
     name: req.body.name,
+    trigger: req.body.trigger,
+    matchType: req.body.matchType,
     action: req.body.action,
     value: req.body.value,
     permission: req.body.permission || 'mods'
   };
+  if (req.body.triggerType === 'reward') {
+    cmd.triggerType = 'reward';
+    cmd.rewardId = req.body.rewardId || null;
+    cmd.rewardTitle = req.body.rewardTitle || '';
+  }
   localSettings.customCommands.push(cmd);
   if (saveLocalSettings(localSettings)) {
     res.json({ success: true, command: cmd });

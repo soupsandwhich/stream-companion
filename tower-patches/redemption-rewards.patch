@@ -1,0 +1,46 @@
+--- a/server.js	2026-11-06 13:45:40.677023500 -0500
++++ b/server.js	2026-11-06 13:45:52.887154400 -0500
+@@ -257,6 +257,7 @@
+     '/api/twitch/top-gifters',
+     '/api/twitch/subscribers',
+     '/api/twitch/followers',
++    '/api/twitch/rewards',   // reward titles/costs only; used by the desktop app's trigger picker
+     '/api/ticker/',
+     '/api/dbd/'
+   ];
+@@ -571,6 +572,22 @@
+ });
+ 
+ // ========== TWITCH API ROUTES ==========
++// Channel point rewards (needs channel:read:redemptions, already requested at login)
++app.get('/api/twitch/rewards', async (req, res) => {
++  try {
++    if (!twitchState.apiClient || !twitchState.userId) {
++      return res.status(503).json({ error: 'Twitch not connected', rewards: [] });
++    }
++    const rewards = await twitchState.apiClient.channelPoints.getCustomRewards(twitchState.userId);
++    res.json({
++      rewards: rewards.map(r => ({ id: r.id, title: r.title, cost: r.cost, enabled: r.isEnabled }))
++    });
++  } catch (e) {
++    console.error('Failed to load channel point rewards:', e.message);
++    res.status(502).json({ error: e.message, rewards: [] });
++  }
++});
++
+ app.get('/api/twitch/status', (req, res) => {
+   res.json({
+     connected: twitchState.connected,
+@@ -1183,7 +1200,11 @@
+       logTwitchEvent('redemption', {
+         user: event.userName,
+         reward: event.rewardTitle,
+-        input: event.input
++        input: event.input,
++        rewardId: event.rewardId,
++        cost: event.rewardCost,
++        userId: event.userId,
++        redemptionId: event.id
+       });
+     });
+ 
