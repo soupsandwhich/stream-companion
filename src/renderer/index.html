@@ -1320,10 +1320,25 @@
           <div class="card">
             <h3>Add Command / Trigger</h3>
             <div class="input-group">
+              <label>Trigger Type</label>
+              <select id="cmd-trigger-type" onchange="updateTriggerTypeFields()">
+                <option value="chat">Chat Message</option>
+                <option value="reward">Channel Point Reward</option>
+              </select>
+            </div>
+            <div class="input-group" id="cmd-reward-group" style="display:none;">
+              <label>Reward</label>
+              <div style="display:flex;gap:8px;">
+                <select id="cmd-reward" style="flex:1;"><option value="">Loading rewards...</option></select>
+                <button class="btn btn-secondary" type="button" onclick="loadRewardOptions(true)">Refresh</button>
+              </div>
+              <div id="cmd-reward-note" style="color:#888;font-size:11px;margin-top:4px;"></div>
+            </div>
+            <div class="input-group" id="cmd-trigger-group">
               <label>Trigger Text</label>
               <input type="text" id="cmd-trigger" placeholder="e.g., !hello or poggers">
             </div>
-            <div class="input-group">
+            <div class="input-group" id="cmd-match-group">
               <label>Match Type</label>
               <select id="cmd-match-type">
                 <option value="exact">Exact Match (whole message equals trigger)</option>
@@ -1344,7 +1359,7 @@
                 <option value="">Select a sound...</option>
               </select>
             </div>
-            <div class="input-group">
+            <div class="input-group" id="cmd-permission-group">
               <label>Who Can Trigger</label>
               <select id="cmd-permission">
                 <option value="everyone">Everyone</option>
@@ -4307,6 +4322,53 @@
       }
     }
 
+    function escapeHtmlCmd(str) {
+      return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    let rewardOptions = [];
+
+    function updateTriggerTypeFields() {
+      const isReward = document.getElementById('cmd-trigger-type').value === 'reward';
+      document.getElementById('cmd-reward-group').style.display = isReward ? '' : 'none';
+      document.getElementById('cmd-trigger-group').style.display = isReward ? 'none' : '';
+      document.getElementById('cmd-match-group').style.display = isReward ? 'none' : '';
+      document.getElementById('cmd-permission-group').style.display = isReward ? 'none' : '';
+      if (isReward) loadRewardOptions();
+    }
+
+    async function loadRewardOptions(force, selectedId, selectedTitle) {
+      const sel = document.getElementById('cmd-reward');
+      const note = document.getElementById('cmd-reward-note');
+      const keep = (selectedId !== undefined || selectedTitle !== undefined)
+        ? (selectedId || selectedTitle || '')
+        : sel.value;
+      if (force || !rewardOptions.length) {
+        try {
+          const res = await fetch('http://localhost:8877/api/rewards');
+          const data = await res.json();
+          rewardOptions = data.rewards || [];
+          if (data.source === 'twitch') note.textContent = 'Live list from Twitch.';
+          else if (data.source === 'seen') note.textContent = 'Could not reach Twitch (' + (data.error || 'unknown') + '). Showing rewards redeemed recently only.';
+          else note.textContent = 'Could not load rewards (' + (data.error || 'unknown') + '). Redeem a reward once and press Refresh.';
+        } catch (e) {
+          rewardOptions = [];
+          note.textContent = 'Could not load rewards: ' + e.message;
+        }
+      }
+      sel.innerHTML = '<option value="">Select a reward...</option>' + rewardOptions.map(r =>
+        '<option value="' + escapeHtmlCmd(r.id || r.title) + '" data-title="' + escapeHtmlCmd(r.title) + '" data-id="' + escapeHtmlCmd(r.id || '') + '">' +
+        escapeHtmlCmd(r.title) + (r.cost != null ? ' (' + r.cost + ')' : '') + '</option>').join('');
+      // An edited command whose reward is no longer listed (renamed/deleted) stays selectable
+      if (keep && !Array.from(sel.options).some(o => o.value === keep)) {
+        const o = document.createElement('option');
+        o.value = keep; o.dataset.title = selectedTitle || keep; o.dataset.id = selectedId || '';
+        o.textContent = (selectedTitle || keep) + ' (not in list)';
+        sel.appendChild(o);
+      }
+      sel.value = keep;
+    }
+
     function getMatchTypeLabel(type) {
       switch(type) {
         case 'exact': return 'Exact';
@@ -4325,14 +4387,15 @@
       container.innerHTML = commandsList.map(cmd => `
         <div class="alert-item" style="flex-wrap:wrap;">
           <div style="flex:1;min-width:200px;">
-            <strong style="color:#e94560;">${cmd.trigger || cmd.name}</strong>
-            <span style="color:#666;margin-left:8px;font-size:11px;">[${getMatchTypeLabel(cmd.matchType || 'startswith')}]</span>
+            ${cmd.triggerType === 'reward'
+              ? `<strong style="color:#e94560;">${escapeHtmlCmd(cmd.rewardTitle || '(no reward)')}</strong><span style="color:#666;margin-left:8px;font-size:11px;">[Channel Point Reward]</span>`
+              : `<strong style="color:#e94560;">${escapeHtmlCmd(cmd.trigger || cmd.name || '')}</strong><span style="color:#666;margin-left:8px;font-size:11px;">[${getMatchTypeLabel(cmd.matchType || 'startswith')}]</span>`}
             <div style="color:#888;font-size:12px;margin-top:4px;">
               ${cmd.action === 'sound' ? '🔊' : '🔔'} ${cmd.action}: <code>${cmd.value}</code>
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            <span style="font-size:11px;color:#888;background:#0f3460;padding:3px 8px;border-radius:4px;">${cmd.permission || 'everyone'}</span>
+            <span style="font-size:11px;color:#888;background:#0f3460;padding:3px 8px;border-radius:4px;">${cmd.triggerType === 'reward' ? 'redemption' : (cmd.permission || 'everyone')}</span>
             <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="editCommandInForm('${cmd.id}')">Edit</button>
             <button class="btn" style="padding:5px 10px;font-size:12px;background:#c0392b;" onclick="deleteCommand('${cmd.id}')">Delete</button>
           </div>
@@ -4364,7 +4427,9 @@
       document.getElementById('cmd-action').value = 'sound';
       document.getElementById('cmd-value').value = '';
       document.getElementById('cmd-permission').value = 'everyone';
+      document.getElementById('cmd-trigger-type').value = 'chat';
       editingCommandId = null;
+      updateTriggerTypeFields();
       updateActionValueField();
     }
 
@@ -4380,6 +4445,9 @@
         document.getElementById('cmd-value').value = cmd.value || '';
       }, 100);
       document.getElementById('cmd-permission').value = cmd.permission || 'everyone';
+      document.getElementById('cmd-trigger-type').value = cmd.triggerType === 'reward' ? 'reward' : 'chat';
+      updateTriggerTypeFields();
+      if (cmd.triggerType === 'reward') loadRewardOptions(false, cmd.rewardId || '', cmd.rewardTitle || '');
       editingCommandId = id;
 
       // Scroll to form
@@ -4392,17 +4460,31 @@
       const action = document.getElementById('cmd-action').value;
       const value = document.getElementById('cmd-value').value;
       const permission = document.getElementById('cmd-permission').value;
+      const triggerType = document.getElementById('cmd-trigger-type').value;
 
-      if (!trigger) {
-        alert('Please enter a trigger text');
-        return;
+      let cmd;
+      if (triggerType === 'reward') {
+        const opt = document.getElementById('cmd-reward').selectedOptions[0];
+        if (!opt || !opt.value) {
+          alert('Please select a reward');
+          return;
+        }
+        if (!value) {
+          alert('Please select an action value');
+          return;
+        }
+        cmd = { triggerType: 'reward', rewardId: opt.dataset.id || null, rewardTitle: opt.dataset.title || opt.textContent, action, value };
+      } else {
+        if (!trigger) {
+          alert('Please enter a trigger text');
+          return;
+        }
+        if (!value) {
+          alert('Please select an action value');
+          return;
+        }
+        cmd = { triggerType: 'chat', trigger, matchType, action, value, permission };
       }
-      if (!value) {
-        alert('Please select an action value');
-        return;
-      }
-
-      const cmd = { trigger, matchType, action, value, permission };
 
       try {
         if (editingCommandId) {
